@@ -1,12 +1,13 @@
 import asyncio
 import builtins
 from collections import deque
+from contextlib import asynccontextmanager
 import functools
 import inspect
 import math
 import time
 
-from .utils import Queue, keyword_decorator
+from .utils import DONE, Queue, keyword_decorator
 from itertools import count as _count
 
 
@@ -147,14 +148,6 @@ async def cycle(stream):
             yield x
 
 
-async def pairwise(stream):
-    last = NOTSET
-    async for x in stream:
-        if last is not NOTSET:
-            yield (last, x)
-        last = x
-
-
 async def chain(streams):
     async for stream in aiter(streams):
         async for x in stream:
@@ -280,6 +273,75 @@ class MergeStream:
 
 
 merge = MergeStream
+
+
+class Multicaster:
+    def __init__(self, stream=None, loop=None):
+        self.source = stream
+        self.queues = set()
+        self.done = False
+        self._is_hungry = loop.create_future() if loop else asyncio.Future()
+        if stream is not None:
+            self.main_coroutine = (loop or asyncio).create_task(self.run())
+
+    def notify(self, event):
+        for q in self.queues:
+            q.put_nowait(event)
+
+    def end(self):
+        assert not self.main_coroutine
+        self.done = True
+        self.notify(DONE)
+
+    def _be_hungry(self):
+        if not self._is_hungry.done():
+            self._is_hungry.set_result(True)
+
+    @asynccontextmanager
+    async def _stream_context(self, q):
+        try:
+            yield q
+        finally:
+            self.queues.discard(q)
+
+    async def _stream(self, q):
+        async with self._stream_context(q):
+            if self.done and q.empty():
+                return
+            self._be_hungry()
+            async for event in q:
+                if event is DONE:
+                    break
+                if q.empty():
+                    self._be_hungry()
+                yield event
+
+    def stream(self):
+        q = Queue()
+        self.queues.add(q)
+        return self._stream(q)
+
+    async def run(self):
+        async for event in self.source:
+            await self._is_hungry
+            self._is_hungry = asyncio.Future()
+            self.notify(event)
+        self.main_coroutine = None
+        self.end()
+
+    def __aiter__(self):
+        return self.stream()
+
+
+multicast = Multicaster
+
+
+async def pairwise(stream):
+    last = NOTSET
+    async for x in stream:
+        if last is not NOTSET:
+            yield (last, x)
+        last = x
 
 
 async def reduce(fn, stream, init=NOTSET):
@@ -418,6 +480,11 @@ async def takewhile(fn, stream):
         if not await acall(fn, x):
             break
         yield x
+
+
+def tee(stream, n):
+    mt = multicast(stream)
+    return [mt.stream() for _ in range(n)]
 
 
 async def ticktock(interval):
