@@ -1,0 +1,26 @@
+[project]
+name = "outsight"
+version = "0.1.0"
+description = "Iterate over what happens in your code"
+readme = "README.md"
+requires-python = ">= 3.10"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=0.25.3",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+# Without this it doesn't recognize anext.
+# Weird, because requires-python >= 3.10 should suffice
+target-version = "py310"
