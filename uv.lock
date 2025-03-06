@@ -1,6 +1,14 @@
 version = 1
-revision = 1
 requires-python = ">=3.10"
+
+[[package]]
+name = "asttokens"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/e7/82da0a03e7ba5141f05cce0d302e6eed121ae055e0456ca228bf693984bc/asttokens-3.0.0.tar.gz", hash = "sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7", size = 61978 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/8a/c46dcc25341b5bce5472c718902eb3d38600a903b14fa6aeecef3f21a46f/asttokens-3.0.0-py3-none-any.whl", hash = "sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2", size = 26918 },
+]
 
 [[package]]
 name = "colorama"
@@ -86,6 +94,15 @@ wheels = [
 ]
 
 [[package]]
+name = "executing"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/50/a9d80c47ff289c611ff12e63f7c5d13942c65d68125160cefd768c73e6e4/executing-2.2.0.tar.gz", hash = "sha256:5d108c028108fe2551d1a7b2e8b713341e2cb4fc0aa7dcf966fa4327a5226755", size = 978693 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/8f/c4d9bafc34ad7ad5d8dc16dd1347ee0e507a52c3adb6bfa8887e1c6a26ba/executing-2.2.0-py2.py3-none-any.whl", hash = "sha256:11387150cad388d62750327a53d3339fad4888b39a6fe233c3afbb54ecffd3aa", size = 26702 },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -98,6 +115,10 @@ wheels = [
 name = "outsight"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "asttokens" },
+    { name = "varname" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -107,6 +128,10 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "asttokens", specifier = ">=3.0.0" },
+    { name = "varname", specifier = ">=0.14.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -212,4 +237,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5b/b9/1ed31d167be802da0fc95020d04cd27b7d7065cc6fbefdd2f9186f60d7bd/tomli-2.2.1-cp313-cp313-win32.whl", hash = "sha256:d3f5614314d758649ab2ab3a62d4f2004c825922f9e370b29416484086b264ec", size = 98724 },
     { url = "https://files.pythonhosted.org/packages/c7/32/b0963458706accd9afcfeb867c0f9175a741bf7b19cd424230714d722198/tomli-2.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:a38aa0308e754b0e3c67e344754dff64999ff9b513e691d0e786265c93583c69", size = 109383 },
     { url = "https://files.pythonhosted.org/packages/6e/c2/61d3e0f47e2b74ef40a68b9e6ad5984f6241a942f7cd3bbfbdbd03861ea9/tomli-2.2.1-py3-none-any.whl", hash = "sha256:cb55c73c5f4408779d0cf3eef9f762b9c9f147a77de7b258bef0a5628adc85cc", size = 14257 },
+]
+
+[[package]]
+name = "varname"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "executing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c6/0d/ba8d07ce8a807449d407b6ba896278f5954b4fc03745a413295d2ce68cc9/varname-0.14.0.tar.gz", hash = "sha256:35384677e083202a60a8ed18ff336020e5d017cf8dc1691d09485539c45aa38b", size = 25198 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/eb/c55fe6f7e1d9fa38aba0e038254fdb67f19ec56a46668e8e265855bc496a/varname-0.14.0-py3-none-any.whl", hash = "sha256:2d7a968ec7cdf8026a54cce808ace2c46718df652189a024eab8da94a4fde928", size = 23263 },
 ]

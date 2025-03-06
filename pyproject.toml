@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Iterate over what happens in your code"
 readme = "README.md"
 requires-python = ">= 3.10"
-dependencies = []
+dependencies = [
+    "asttokens>=3.0.0",
+    "varname>=0.14.0",
+]
 
 [build-system]
 requires = ["hatchling"]

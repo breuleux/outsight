@@ -138,6 +138,21 @@ class average_and_variance:
             return self.reduce(last, add)
 
 
+async def chain(streams):
+    async for stream in aiter(streams):
+        async for x in stream:
+            yield x
+
+
+async def count(stream, filter=None):
+    if filter:
+        stream = __filter(filter, stream)
+    count = 0
+    async for _ in stream:
+        count += 1
+    return count
+
+
 async def cycle(stream):
     saved = []
     async for x in stream:
@@ -145,12 +160,6 @@ async def cycle(stream):
         yield x
     while True:
         for x in saved:
-            yield x
-
-
-async def chain(streams):
-    async for stream in aiter(streams):
-        async for x in stream:
             yield x
 
 
@@ -210,6 +219,17 @@ async def filter(fn, stream):
     async for x in stream:
         if fn(x):
             yield x
+
+
+async def first(stream):
+    async for x in stream:
+        return x
+
+
+async def last(stream):
+    async for x in stream:
+        rval = x
+    return rval
 
 
 async def map(fn, stream):
@@ -517,4 +537,5 @@ async def zip(*streams):
             return
 
 
+__filter = filter
 __scan = scan

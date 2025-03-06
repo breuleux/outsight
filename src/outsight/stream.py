@@ -42,11 +42,14 @@ class Stream:
     #############
 
     average = _forward()
+    count = _forward()
     cycle = _forward()
     debounce = _forward()
     drop = _forward()
     dropwhile = _forward()
     filter = _forward()
+    first = _forward()
+    last = _forward()
     map = _forward()
     min = _forward()
     max = _forward()

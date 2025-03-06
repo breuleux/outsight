@@ -27,14 +27,14 @@ class Queue(asyncio.Queue):
             raise StopAsyncIteration(None)
         return value
 
+    def close(self):
+        self.put_nowait(CLOSED)
+
 
 class BoundQueue(Queue):
     def __init__(self, loop):
         super().__init__()
         self._loop = loop
-
-    def close(self):
-        self.put_nowait(CLOSED)
 
 
 def keyword_decorator(deco):

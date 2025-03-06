@@ -49,6 +49,13 @@ async def test_chain():
 
 
 @aio
+async def test_count(ten):
+    ten1, ten2 = O.tee(ten, 2)
+    assert await O.count(ten1) == 10
+    assert await O.count(ten2, lambda x: x % 2 == 0) == 5
+
+
+@aio
 async def test_generate_chain(ten):
     assert await lister.chain([O.aiter([x, x * x]) async for x in O.aiter([3, 7])]) == [
         3,
@@ -98,6 +105,16 @@ async def test_dropwhile(ten):
 @aio
 async def test_filter(ten):
     assert await lister.filter(lambda x: x % 2 == 0, ten) == [0, 2, 4, 6, 8]
+
+
+@aio
+async def test_first(ten):
+    assert await O.first(ten) == 0
+
+
+@aio
+async def test_last(ten):
+    assert await O.last(ten) == 9
 
 
 @aio
