@@ -30,3 +30,15 @@ async def test_merge():
 
     s = Stream(seq1)
     assert await s.merge(seq2).to_list() == list("ABxyCDz")
+
+
+@aio
+async def test_slice(ten):
+    s = Stream(ten)
+    assert (await s[1:3].to_list()) == [1, 2]
+
+
+@aio
+async def test_nth(ten):
+    s = Stream(ten)
+    assert (await s[2]) == 2

@@ -3,6 +3,10 @@ from outsight.ops import to_list
 from outsight import ops as O
 
 
+def seq(*elems):
+    return O.aiter(elems)
+
+
 async def timed_sequence(seq, factor=1000):
     for entry in seq.split():
         try:

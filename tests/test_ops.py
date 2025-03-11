@@ -2,7 +2,7 @@ from itertools import count
 import pytest
 from outsight import ops as O
 from outsight.ops import to_list
-from .common import timed_sequence, delayed, lister
+from .common import seq, timed_sequence, delayed, lister
 
 aio = pytest.mark.asyncio
 
@@ -44,6 +44,19 @@ async def test_average_and_variance_roll(ten):
 
 
 @aio
+async def test_bottom():
+    assert (await O.bottom(seq(4, -1, 3, 8, 21, 0, -3), 3)) == [-3, -1, 0]
+
+
+@aio
+async def test_bottom_key():
+    def key(x):
+        return (x - 10) ** 2
+
+    assert (await O.bottom(seq(4, -1, 3, 8, 21, 0, -3), 2, key=key)) == [8, 4]
+
+
+@aio
 async def test_chain():
     assert await lister.chain([O.aiter([1, 2]), O.aiter([7, 8])]) == [1, 2, 7, 8]
 
@@ -53,6 +66,11 @@ async def test_count(ten):
     ten1, ten2 = O.tee(ten, 2)
     assert await O.count(ten1) == 10
     assert await O.count(ten2, lambda x: x % 2 == 0) == 5
+
+
+@aio
+async def test_enumerate():
+    assert await lister.enumerate(seq(5, 9, -3)) == [(0, 5), (1, 9), (2, -3)]
 
 
 @aio
@@ -88,6 +106,19 @@ async def test_debounce():
 
 
 @aio
+async def test_distinct():
+    assert await lister.distinct(seq(1, 2, 1, 3, 3, 2, 4, 0, 5)) == [1, 2, 3, 4, 0, 5]
+
+
+@aio
+async def test_distinct_key():
+    def key(x):
+        return x >= 0
+
+    assert await lister.distinct(seq(1, 2, 3, -7, 4, -3, 0, 2), key=key) == [1, -7]
+
+
+@aio
 async def test_drop(ten):
     assert await lister.drop(ten, 5) == [*range(5, 10)]
 
@@ -95,6 +126,11 @@ async def test_drop(ten):
 @aio
 async def test_drop_more(ten):
     assert await lister.drop(ten, 15) == []
+
+
+@aio
+async def test_drop_last(ten):
+    assert await lister.drop_last(ten, 3) == [0, 1, 2, 3, 4, 5, 6]
 
 
 @aio
@@ -165,6 +201,17 @@ async def test_multicast(ten):
 
 
 @aio
+async def test_norepeat():
+    assert await lister.norepeat(seq(1, 2, 1, 3, 3, 2, 2, 2, 1)) == [1, 2, 1, 3, 2, 1]
+
+
+@aio
+async def test_nth_out_of_bounds(ten):
+    with pytest.raises(IndexError):
+        await O.nth(ten, 100)
+
+
+@aio
 async def test_pairwise(ten):
     assert await lister.pairwise(ten) == list(zip(range(0, 9), range(1, 10)))
 
@@ -224,6 +271,15 @@ async def test_roll_partial():
 
 
 @aio
+async def test_sample():
+    factor = 100
+    seq = "A 1  B 1  C 1  D 1"
+
+    results = await lister.sample(timed_sequence(seq, factor), 0.6 / factor)
+    assert results == list("AABBCDDD")
+
+
+@aio
 async def test_scan(ten):
     assert await lister.scan(lambda x, y: x + y, ten) == [
         sum(range(i + 1)) for i in range(10)
@@ -231,10 +287,51 @@ async def test_scan(ten):
 
 
 @aio
+async def test_slice(ten):
+    assert await lister.slice(ten, 3, 8, 2) == [3, 5, 7]
+
+
+@aio
+async def test_slice_onearg(ten):
+    assert await lister.slice(ten, 7) == [7, 8, 9]
+
+
+@aio
+async def test_slice_negative(ten):
+    assert await lister.slice(ten, -3) == [7, 8, 9]
+
+
+@aio
+async def test_slice_only_stop(ten):
+    assert await lister.slice(ten, stop=3) == [0, 1, 2]
+
+
+@aio
+async def test_slice_negative_start_stop(ten):
+    assert await lister.slice(ten, -3, -1) == [7, 8]
+
+
+@aio
+async def test_slice_no_args(ten):
+    assert await lister.slice(ten) == list(range(10))
+
+
+@aio
+async def test_sort():
+    xs = [4, -1, 3, 8, 21, 0, -3]
+    assert (await O.sort(seq(*xs))) == list(sorted(xs))
+
+
+@aio
 async def test_std(ten):
     avg = sum(range(10)) / 10
     var = sum([(i - avg) ** 2 for i in range(10)]) / 9
     assert await O.std(ten) == var**0.5
+
+
+@aio
+async def test_sum(ten):
+    assert await O.sum(ten) == sum(range(10))
 
 
 @aio
@@ -279,10 +376,24 @@ async def test_tee(ten):
 
 
 @aio
+async def test_throttle():
+    factor = 100
+    seq = "A 1  B 1  C 1  D 1"
+
+    results = await lister.throttle(timed_sequence(seq, factor), 2.5 / factor)
+    assert results == list("ACD")
+
+
+@aio
 async def test_ticktock(fakesleep):
     results = await lister.take(O.ticktock(1), 10)
     assert results == list(range(10))
     assert fakesleep[0] == 9
+
+
+@aio
+async def test_top():
+    assert (await O.top(seq(4, -1, 3, 8, 21, 0, -3), 3)) == [21, 8, 4]
 
 
 @aio

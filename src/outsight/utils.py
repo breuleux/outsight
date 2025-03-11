@@ -2,7 +2,7 @@ import asyncio
 import functools
 
 
-DONE = object()
+ABSENT = object()
 CLOSED = object()
 
 

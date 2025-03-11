@@ -1,4 +1,5 @@
 import asyncio
+from bisect import bisect_left
 import builtins
 from collections import deque
 from contextlib import asynccontextmanager
@@ -7,7 +8,7 @@ import inspect
 import math
 import time
 
-from .utils import DONE, Queue, keyword_decorator
+from .utils import ABSENT, CLOSED, BoundQueue, Queue, keyword_decorator
 from itertools import count as _count
 
 
@@ -138,6 +139,27 @@ class average_and_variance:
             return self.reduce(last, add)
 
 
+async def bottom(stream, n=10, key=None, reverse=False):
+    assert n > 0
+
+    keyed = []
+    elems = []
+
+    async for x in stream:
+        newkey = key(x) if key else x
+        if len(keyed) < n or (newkey > keyed[0] if reverse else newkey < keyed[-1]):
+            ins = bisect_left(keyed, newkey)
+            keyed.insert(ins, newkey)
+            if reverse:
+                ins = len(elems) - ins
+            elems.insert(ins, x)
+            if len(keyed) > n:
+                del keyed[0 if reverse else -1]
+                elems.pop()
+
+    return elems
+
+
 async def chain(streams):
     async for stream in aiter(streams):
         async for x in stream:
@@ -197,6 +219,14 @@ async def debounce(stream, delay=None, max_wait=None):
             current = element
 
 
+async def distinct(stream, key=lambda x: x):
+    seen = set()
+    async for x in stream:
+        if (k := key(x)) not in seen:
+            yield x
+            seen.add(k)
+
+
 async def drop(stream, n):
     curr = 0
     async for x in stream:
@@ -212,6 +242,27 @@ async def dropwhile(fn, stream):
             yield x
         elif not await acall(fn, x):
             go = True
+            yield x
+
+
+async def drop_last(stream, n):
+    buffer = deque(maxlen=n)
+    async for x in stream:
+        if len(buffer) == n:
+            yield buffer.popleft()
+        buffer.append(x)
+
+
+async def enumerate(stream):
+    i = 0
+    async for x in stream:
+        yield (i, x)
+        i += 1
+
+
+async def every(stream, n):
+    async for i, x in enumerate(stream):
+        if i % n == 0:
             yield x
 
 
@@ -300,6 +351,7 @@ class Multicaster:
         self.source = stream
         self.queues = set()
         self.done = False
+        self.loop = loop
         self._is_hungry = loop.create_future() if loop else asyncio.Future()
         if stream is not None:
             self.main_coroutine = (loop or asyncio).create_task(self.run())
@@ -311,7 +363,7 @@ class Multicaster:
     def end(self):
         assert not self.main_coroutine
         self.done = True
-        self.notify(DONE)
+        self.notify(CLOSED)
 
     def _be_hungry(self):
         if not self._is_hungry.done():
@@ -330,21 +382,21 @@ class Multicaster:
                 return
             self._be_hungry()
             async for event in q:
-                if event is DONE:
-                    break
                 if q.empty():
                     self._be_hungry()
                 yield event
 
     def stream(self):
-        q = Queue()
+        q = BoundQueue(loop=self.loop)
         self.queues.add(q)
         return self._stream(q)
 
     async def run(self):
         async for event in self.source:
             await self._is_hungry
-            self._is_hungry = asyncio.Future()
+            self._is_hungry = (
+                self.loop.create_future() if self.loop else asyncio.Future()
+            )
             self.notify(event)
         self.main_coroutine = None
         self.end()
@@ -354,6 +406,21 @@ class Multicaster:
 
 
 multicast = Multicaster
+
+
+async def nth(stream, n):
+    async for i, x in enumerate(stream):
+        if i == n:
+            return x
+    raise IndexError(n)
+
+
+async def norepeat(stream, key=lambda x: x):
+    last = ABSENT
+    async for x in stream:
+        if (k := key(x)) != last:
+            yield x
+            last = k
 
 
 async def pairwise(stream):
@@ -422,6 +489,33 @@ async def roll(stream, window, reducer=None, partial=None, init=NOTSET):
                 yield current
 
 
+async def sample(stream, interval, reemit=True):
+    if isinstance(interval, (float, int)):
+        interval = ticktock(interval)
+
+    current = ABSENT
+    ticked = False
+
+    async for tag, value in tagged_merge(
+        tick=interval, stream=stream, exit_on_first=True
+    ):
+        if tag == "stream":
+            if current is ABSENT and ticked:
+                yield value
+                if reemit:
+                    current = value
+            else:
+                current = value
+            ticked = False
+        else:
+            ticked = True
+            if current is not ABSENT:
+                yield current
+                if not reemit:
+                    current = ABSENT
+                    ticked = False
+
+
 async def scan(fn, stream, init=NOTSET):
     current = init
     async for x in stream:
@@ -430,6 +524,29 @@ async def scan(fn, stream, init=NOTSET):
         else:
             current = await acall(fn, current, x)
         yield current
+
+
+def slice(stream, start=None, stop=None, step=None):
+    rval = stream
+    if start is None:
+        if stop is None:
+            return stream
+        rval = take(stream, stop) if stop >= 0 else drop_last(stream, -stop)
+    else:
+        rval = drop(rval, start) if start >= 0 else take_last(rval, -start)
+        if stop is not None:
+            sz = stop - start
+            assert sz >= 0
+            rval = take(rval, sz)
+    if step:
+        rval = every(rval, step)
+    return rval
+
+
+async def sort(stream, key=None, reverse=False):
+    li = await to_list(stream)
+    li.sort(key=key, reverse=reverse)
+    return li
 
 
 @reducer(init=(0, 0, 0))
@@ -443,10 +560,18 @@ class std(average_and_variance._source):
         return var
 
 
+@reducer
+def sum(last, add):
+    return last + add
+
+
 class TaggedMergeStream:
-    def __init__(self, streams={}, stay_alive=False, **streams_kw):
+    def __init__(self, streams={}, stay_alive=False, exit_on_first=False, **streams_kw):
         self.queue = Queue()
         self.active = 1 if stay_alive else 0
+        self.exit_on_first = exit_on_first
+        self.tasks = {}
+        self.done = False
         for tag, stream in {**streams, **streams_kw}.items():
             self.add(tag, stream)
 
@@ -455,7 +580,7 @@ class TaggedMergeStream:
             result = await fut
             self.queue.put_nowait(((tag, result), iterator))
         except StopAsyncIteration:
-            self.queue.put_nowait((None, False))
+            self.queue.put_nowait(((tag, None), False))
 
     def add(self, tag, fut):
         self.active += 1
@@ -466,18 +591,26 @@ class TaggedMergeStream:
             coro = self._add(tag, fut, None)
         else:  # pragma: no cover
             raise TypeError(f"Cannot merge object {fut!r}")
-        return asyncio.create_task(coro)
+        task = asyncio.create_task(coro)
+        self.tasks[tag] = task
+        return task
 
     async def __aiter__(self):
         async for result, it in self.queue:
             if it is False:
                 self.active -= 1
+                if self.exit_on_first:
+                    self.done = True
             elif it is None:
                 yield result
                 self.active -= 1
             else:
                 tag, _ = result
-                asyncio.create_task(self._add(tag, anext(it), it))
+                if self.done:
+                    self.active -= 1
+                else:
+                    task = asyncio.create_task(self._add(tag, anext(it), it))
+                    self.tasks[tag] = task
                 yield result
             if self.active == 0:
                 break
@@ -502,15 +635,31 @@ async def takewhile(fn, stream):
         yield x
 
 
+async def take_last(stream, n):
+    buffer = deque(maxlen=n)
+    async for x in stream:
+        buffer.append(x)
+    for x in buffer:
+        yield x
+
+
 def tee(stream, n):
     mt = multicast(stream)
     return [mt.stream() for _ in range(n)]
+
+
+def throttle(stream, delay):
+    return sample(stream, delay, reemit=False)
 
 
 async def ticktock(interval):
     for i in _count():
         yield i
         await asyncio.sleep(interval)
+
+
+def top(stream, n=10, key=None, reverse=False):
+    return bottom(stream, n=n, key=key, reverse=not reverse)
 
 
 async def to_list(stream):
