@@ -1,4 +1,4 @@
-from . import ops
+from . import ops, keyed
 
 
 class _forward:
@@ -11,9 +11,11 @@ class _forward:
         if self.name is None:
             self.name = name
         if self.operator is None:
-            self.operator = getattr(ops, self.name)
+            self.operator = getattr(ops, self.name, None) or getattr(keyed, self.name)
 
     def __get__(self, obj, objt):
+        obj = aiter(obj)
+
         if self.first_arg:
 
             def wrap(*args, **kwargs):
@@ -32,6 +34,8 @@ class Stream:
         self.source = source
 
     def __aiter__(self):
+        if not hasattr(self.source, "__aiter__"):
+            raise Exception(f"Stream source {self.source} is not iterable.")
         return aiter(self.source)
 
     def __await__(self):
@@ -85,3 +89,27 @@ class Stream:
     # chain
     # repeat
     # ticktock
+
+    ########################
+    # Dict-based operators #
+    ########################
+
+    def __getitem__(self, item):
+        src = aiter(self.source)
+        if isinstance(item, int):
+            return Stream(ops.nth(src, item))
+        elif isinstance(item, slice):
+            return Stream(ops.slice(src, item.start, item.stop, item.step))
+        else:
+            return Stream(keyed.getitem(src, item))
+
+    augment = _forward(first_arg=True)
+    affix = _forward(first_arg=True)
+    getitem = _forward(first_arg=True)
+    keep = _forward(first_arg=True)
+    kfilter = _forward(first_arg=True)
+    kmap = _forward(first_arg=True)
+    kmerge = _forward(first_arg=True)
+    kscan = _forward(first_arg=True)
+    where = _forward(first_arg=True)
+    where_any = _forward(first_arg=True)

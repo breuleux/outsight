@@ -1,14 +1,8 @@
 from outsight.stream import Stream
 import pytest
-from outsight import ops as O
 from .common import timed_sequence
 
 aio = pytest.mark.asyncio
-
-
-@pytest.fixture
-def ten():
-    return O.aiter(range(10))
 
 
 @aio

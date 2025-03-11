@@ -1,6 +1,7 @@
 import asyncio
 from outsight.ops import to_list
 from outsight import ops as O
+from outsight import keyed as K
 
 
 def seq(*elems):
@@ -26,7 +27,10 @@ class Lister:
 
     def __getattr__(self, attr):
         async def wrap(*args, **kwargs):
-            return await to_list(getattr(O, attr)(*args, **kwargs))
+            try:
+                return await to_list(getattr(O, attr)(*args, **kwargs))
+            except AttributeError:
+                return await to_list(getattr(K, attr)(*args, **kwargs))
 
         return wrap
 
