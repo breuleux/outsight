@@ -14,11 +14,11 @@ def otest(cls):
                 cls.main(outsight.give)
 
         outsight = Outsight()
-        othread = outsight.async_start()
         for name in dir(cls):
             if name.startswith("o_"):
                 outsight.add(getattr(cls, name))
 
+        othread = outsight.start()
         await asyncio.gather(othread, mthread)
 
     return test

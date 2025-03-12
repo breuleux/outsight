@@ -218,6 +218,8 @@ async def test_multicast(ten):
     )
     # Creating iterators after consumption won't reset the iteration
     assert (await lister.zip(mt, mt, mt)) == []
+    # Again
+    assert (await lister.zip(mt, mt, mt)) == []
 
 
 @aio

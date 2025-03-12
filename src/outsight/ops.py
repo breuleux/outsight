@@ -2,7 +2,7 @@ import asyncio
 from bisect import bisect_left
 import builtins
 from collections import deque
-from contextlib import aclosing, asynccontextmanager
+from contextlib import aclosing
 import functools
 import inspect
 import math
@@ -380,60 +380,44 @@ merge = MergeStream
 
 
 class Multicaster:
-    def __init__(self, stream=None, loop=None):
+    def __init__(self, stream, loop=None):
         self.source = stream
+        self.iterator = aiter(stream)
         self.queues = set()
-        self.done = False
+        self.someone_waits = False
         self.loop = loop
-        self._is_hungry = loop.create_future() if loop else asyncio.Future()
-        if stream is not None:
-            self.main_coroutine = (loop or asyncio).create_task(self.run())
 
-    def notify(self, event):
+    def notify(self, event, excepted=None):
         for q in self.queues:
-            q.put_nowait(event)
-
-    def end(self):
-        assert not self.main_coroutine
-        self.done = True
-        self.notify(CLOSED)
-
-    def _be_hungry(self):
-        if not self._is_hungry.done():
-            self._is_hungry.set_result(True)
-
-    @asynccontextmanager
-    async def _stream_context(self, q):
-        try:
-            yield q
-        finally:
-            self.queues.discard(q)
+            if q is not excepted:
+                q.put_nowait(event)
 
     async def _stream(self, q):
-        async with self._stream_context(q):
-            if self.done and q.empty():
-                return
-            self._be_hungry()
-            async for event in q:
-                if q.empty():
-                    self._be_hungry()
-                yield event
+        try:
+            while True:
+                if q.empty() and not self.someone_waits:
+                    self.someone_waits = True
+                    try:
+                        result = await anext(self.iterator)
+                        self.notify(result, excepted=q)
+                    except StopAsyncIteration:
+                        await self.iterator.aclose()
+                        self.notify(CLOSED)
+                        break
+                    finally:
+                        self.someone_waits = False
+                else:
+                    result = await q.get()
+                if result is CLOSED:
+                    break
+                yield result
+        finally:
+            self.queues.discard(q)
 
     def stream(self):
         q = BoundQueue(loop=self.loop)
         self.queues.add(q)
         return self._stream(q)
-
-    async def run(self):
-        async with aclosing(self.source):
-            async for event in self.source:
-                await self._is_hungry
-                self._is_hungry = (
-                    self.loop.create_future() if self.loop else asyncio.Future()
-                )
-                self.notify(event)
-            self.main_coroutine = None
-            self.end()
 
     def __aiter__(self):
         return self.stream()
