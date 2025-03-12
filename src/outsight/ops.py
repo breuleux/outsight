@@ -31,7 +31,7 @@ def reducer(cls, init=NOTSET):
     @functools.wraps(cls)
     def wrapped(stream, scan=None, init=init):
         if scan is None:
-            oper = reduce(_reduce, stream, init=init)
+            oper = reduce(stream, _reduce, init=init)
             if _postprocess:
 
                 async def _oper():
@@ -43,19 +43,19 @@ def reducer(cls, init=NOTSET):
 
         else:
             if scan is True:
-                oper = __scan(_reduce, stream, init=init)
+                oper = __scan(stream, _reduce, init=init)
 
             elif _roll:
                 oper = roll(stream, window=scan, reducer=obj.roll, init=init)
 
             else:
                 oper = map(
-                    lambda data: functools.reduce(_reduce, data),
                     roll(stream, window=scan, init=init, partial=True),
+                    lambda data: functools.reduce(_reduce, data),
                 )
 
             if _postprocess:
-                return map(_postprocess, oper)
+                return map(oper, _postprocess)
             else:
                 return oper
 
@@ -186,7 +186,7 @@ async def chain(streams):
 
 async def count(stream, filter=None):
     if filter:
-        stream = __filter(filter, stream)
+        stream = __filter(stream, filter)
     count = 0
     async with aclosing(stream):
         async for _ in stream:
@@ -257,7 +257,7 @@ async def drop(stream, n):
             curr += 1
 
 
-async def dropwhile(fn, stream):
+async def drop_while(stream, fn):
     go = False
     async with aclosing(stream):
         async for x in stream:
@@ -292,7 +292,7 @@ async def every(stream, n):
                 yield x
 
 
-async def filter(fn, stream):
+async def filter(stream, fn):
     async with aclosing(stream):
         async for x in stream:
             if fn(x):
@@ -312,7 +312,7 @@ async def last(stream):
     return rval
 
 
-async def map(fn, stream):
+async def map(stream, fn):
     async with aclosing(stream):
         async for x in stream:
             yield await acall(fn, x)
@@ -468,7 +468,7 @@ async def pairwise(stream):
             last = x
 
 
-async def reduce(fn, stream, init=NOTSET):
+async def reduce(stream, fn, init=NOTSET):
     current = init
     async with aclosing(stream):
         async for x in stream:
@@ -556,7 +556,7 @@ async def sample(stream, interval, reemit=True):
                     ticked = False
 
 
-async def scan(fn, stream, init=NOTSET):
+async def scan(stream, fn, init=NOTSET):
     current = init
     async with aclosing(stream):
         async for x in stream:
@@ -673,7 +673,7 @@ async def take(stream, n):
                 break
 
 
-async def takewhile(fn, stream):
+async def take_while(stream, fn):
     async with aclosing(stream):
         async for x in stream:
             if not await acall(fn, x):

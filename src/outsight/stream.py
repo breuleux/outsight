@@ -2,10 +2,9 @@ from . import ops, keyed
 
 
 class _forward:
-    def __init__(self, operator=None, name=None, first_arg=False):
+    def __init__(self, operator=None, name=None):
         self.operator = operator
         self.name = name
-        self.first_arg = first_arg
 
     def __set_name__(self, obj, name):
         if self.name is None:
@@ -16,15 +15,8 @@ class _forward:
     def __get__(self, obj, objt):
         obj = aiter(obj)
 
-        if self.first_arg:
-
-            def wrap(*args, **kwargs):
-                return Stream(self.operator(obj, *args, **kwargs))
-
-        else:
-
-            def wrap(*args, **kwargs):
-                return Stream(self.operator(*args, stream=obj, **kwargs))
+        def wrap(*args, **kwargs):
+            return Stream(self.operator(obj, *args, **kwargs))
 
         return wrap
 
@@ -50,48 +42,48 @@ class Stream:
     # Operators #
     #############
 
-    any = _forward(first_arg=True)
-    all = _forward(first_arg=True)
+    any = _forward()
+    all = _forward()
     average = _forward()
-    bottom = _forward(first_arg=True)
+    bottom = _forward()
     count = _forward()
     cycle = _forward()
     debounce = _forward()
-    distinct = _forward(first_arg=True)
+    distinct = _forward()
     drop = _forward()
-    dropwhile = _forward()
-    drop_last = _forward(first_arg=True)
-    enumerate = _forward(first_arg=True)
-    every = _forward(first_arg=True)
+    drop_while = _forward()
+    drop_last = _forward()
+    enumerate = _forward()
+    every = _forward()
     filter = _forward()
     first = _forward()
     last = _forward()
     map = _forward()
     max = _forward()
-    merge = _forward(first_arg=True)
+    merge = _forward()
     min = _forward()
     multicast = _forward()
-    norepeat = _forward(first_arg=True)
-    nth = _forward(first_arg=True)
+    norepeat = _forward()
+    nth = _forward()
     pairwise = _forward()
     reduce = _forward()
     roll = _forward()
-    sample = _forward(first_arg=True)
+    sample = _forward()
     scan = _forward()
-    slice = _forward(first_arg=True)
-    sort = _forward(first_arg=True)
+    slice = _forward()
+    sort = _forward()
     std = _forward()
     sum = _forward()
-    tagged_merge = _forward(first_arg=True)
+    tagged_merge = _forward()
     take = _forward()
-    takewhile = _forward()
-    take_last = _forward(first_arg=True)
+    take_while = _forward()
+    take_last = _forward()
     tee = _forward()
-    throttle = _forward(first_arg=True)
-    top = _forward(first_arg=True)
+    throttle = _forward()
+    top = _forward()
     to_list = _forward()
     variance = _forward()
-    zip = _forward(first_arg=True)
+    zip = _forward()
 
     # chain
     # repeat
@@ -110,13 +102,13 @@ class Stream:
         else:
             return Stream(keyed.getitem(src, item))
 
-    augment = _forward(first_arg=True)
-    affix = _forward(first_arg=True)
-    getitem = _forward(first_arg=True)
-    keep = _forward(first_arg=True)
-    kfilter = _forward(first_arg=True)
-    kmap = _forward(first_arg=True)
-    kmerge = _forward(first_arg=True)
-    kscan = _forward(first_arg=True)
-    where = _forward(first_arg=True)
-    where_any = _forward(first_arg=True)
+    augment = _forward()
+    affix = _forward()
+    getitem = _forward()
+    keep = _forward()
+    kfilter = _forward()
+    kmap = _forward()
+    kmerge = _forward()
+    kscan = _forward()
+    where = _forward()
+    where_any = _forward()

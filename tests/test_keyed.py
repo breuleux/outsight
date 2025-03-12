@@ -64,7 +64,7 @@ async def test_kmerge():
 @aio
 async def test_kscan():
     result = await lister.map(
-        dict, K.kscan(seq({"x": 1}, {"y": 2}, {"x": 3}, {"z": 4}))
+        K.kscan(seq({"x": 1}, {"y": 2}, {"x": 3}, {"z": 4})), dict
     )
     assert result == [
         {"x": 1},

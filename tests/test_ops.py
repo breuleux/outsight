@@ -154,13 +154,13 @@ async def test_drop_last(ten):
 
 
 @aio
-async def test_dropwhile(ten):
-    assert await lister.dropwhile(lambda x: x < 5, ten) == [*range(5, 10)]
+async def test_drop_while(ten):
+    assert await lister.drop_while(ten, lambda x: x < 5) == [*range(5, 10)]
 
 
 @aio
 async def test_filter(ten):
-    assert await lister.filter(lambda x: x % 2 == 0, ten) == [0, 2, 4, 6, 8]
+    assert await lister.filter(ten, lambda x: x % 2 == 0) == [0, 2, 4, 6, 8]
 
 
 @aio
@@ -175,7 +175,7 @@ async def test_last(ten):
 
 @aio
 async def test_map(ten):
-    assert await lister.map(lambda x: x + 83, ten) == list(range(83, 93))
+    assert await lister.map(ten, lambda x: x + 83) == list(range(83, 93))
 
 
 @aio
@@ -183,7 +183,7 @@ async def test_map_async(ten):
     async def f(x):
         return x + 84
 
-    assert await lister.map(f, ten) == list(range(84, 94))
+    assert await lister.map(ten, f) == list(range(84, 94))
 
 
 @aio
@@ -238,20 +238,20 @@ async def test_pairwise(ten):
 
 @aio
 async def test_reduce(ten):
-    assert await O.reduce(lambda x, y: x + y, ten) == sum(range(1, 10))
+    assert await O.reduce(ten, lambda x, y: x + y) == sum(range(1, 10))
 
 
 @aio
 async def test_reduce_init(ten):
     assert (
-        await O.reduce(lambda x, y: x + y, ten, init=1000) == sum(range(1, 10)) + 1000
+        await O.reduce(ten, lambda x, y: x + y, init=1000) == sum(range(1, 10)) + 1000
     )
 
 
 @aio
 async def test_reduce_empty(ten):
     with pytest.raises(ValueError, match="Stream cannot be reduced"):
-        await O.reduce(lambda x, y: x + y, O.aiter([]))
+        await O.reduce(O.aiter([]), lambda x, y: x + y)
 
 
 @aio
@@ -275,14 +275,14 @@ async def test_repeat_nocount(fakesleep):
 
 @aio
 async def test_roll(ten):
-    assert await lister.map(tuple, O.roll(ten, 2)) == list(
+    assert await lister.map(O.roll(ten, 2), tuple) == list(
         zip(range(0, 9), range(1, 10))
     )
 
 
 @aio
 async def test_roll_partial():
-    assert await lister.map(tuple, O.roll(O.aiter(range(4)), 3, partial=True)) == [
+    assert await lister.map(O.roll(O.aiter(range(4)), 3, partial=True), tuple) == [
         (0,),
         (0, 1),
         (0, 1, 2),
@@ -301,7 +301,7 @@ async def test_sample():
 
 @aio
 async def test_scan(ten):
-    assert await lister.scan(lambda x, y: x + y, ten) == [
+    assert await lister.scan(ten, lambda x, y: x + y) == [
         sum(range(i + 1)) for i in range(10)
     ]
 
@@ -383,8 +383,8 @@ async def test_take_more(ten):
 
 
 @aio
-async def test_takewhile(ten):
-    assert await lister.takewhile(lambda x: x < 5, ten) == [*range(5)]
+async def test_take_while(ten):
+    assert await lister.take_while(ten, lambda x: x < 5) == [*range(5)]
 
 
 @aio
