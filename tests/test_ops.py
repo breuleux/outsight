@@ -8,6 +8,26 @@ aio = pytest.mark.asyncio
 
 
 @aio
+async def test_any(ten):
+    assert await O.any(ten)
+
+
+@aio
+async def test_any_predicate(ten):
+    assert not (await O.any(ten, lambda x: x < 0))
+
+
+@aio
+async def test_all(ten):
+    assert not (await O.all(ten))
+
+
+@aio
+async def test_all_predicate(ten):
+    assert await O.all(ten, lambda x: x >= 0)
+
+
+@aio
 async def test_average(ten):
     assert await O.average(ten) == sum(range(10)) / 10
 

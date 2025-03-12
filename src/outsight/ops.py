@@ -2,7 +2,7 @@ import asyncio
 from bisect import bisect_left
 import builtins
 from collections import deque
-from contextlib import asynccontextmanager
+from contextlib import aclosing, asynccontextmanager
 import functools
 import inspect
 import math
@@ -82,6 +82,22 @@ def aiter(it):
         return iterate()
 
 
+async def all(stream, predicate=bool):
+    async with aclosing(stream):
+        async for x in stream:
+            if not predicate(x):
+                return False
+        return True
+
+
+async def any(stream, predicate=bool):
+    async with aclosing(stream):
+        async for x in stream:
+            if predicate(x):
+                return True
+        return False
+
+
 @reducer(init=(0, 0))
 class average:
     def reduce(self, last, add):
@@ -145,41 +161,45 @@ async def bottom(stream, n=10, key=None, reverse=False):
     keyed = []
     elems = []
 
-    async for x in stream:
-        newkey = key(x) if key else x
-        if len(keyed) < n or (newkey > keyed[0] if reverse else newkey < keyed[-1]):
-            ins = bisect_left(keyed, newkey)
-            keyed.insert(ins, newkey)
-            if reverse:
-                ins = len(elems) - ins
-            elems.insert(ins, x)
-            if len(keyed) > n:
-                del keyed[0 if reverse else -1]
-                elems.pop()
+    async with aclosing(stream):
+        async for x in stream:
+            newkey = key(x) if key else x
+            if len(keyed) < n or (newkey > keyed[0] if reverse else newkey < keyed[-1]):
+                ins = bisect_left(keyed, newkey)
+                keyed.insert(ins, newkey)
+                if reverse:
+                    ins = len(elems) - ins
+                elems.insert(ins, x)
+                if len(keyed) > n:
+                    del keyed[0 if reverse else -1]
+                    elems.pop()
 
-    return elems
+        return elems
 
 
 async def chain(streams):
     async for stream in aiter(streams):
-        async for x in stream:
-            yield x
+        async with aclosing(stream):
+            async for x in stream:
+                yield x
 
 
 async def count(stream, filter=None):
     if filter:
         stream = __filter(filter, stream)
     count = 0
-    async for _ in stream:
-        count += 1
-    return count
+    async with aclosing(stream):
+        async for _ in stream:
+            count += 1
+        return count
 
 
 async def cycle(stream):
     saved = []
-    async for x in stream:
-        saved.append(x)
-        yield x
+    async with aclosing(stream):
+        async for x in stream:
+            saved.append(x)
+            yield x
     while True:
         for x in saved:
             yield x
@@ -221,71 +241,81 @@ async def debounce(stream, delay=None, max_wait=None):
 
 async def distinct(stream, key=lambda x: x):
     seen = set()
-    async for x in stream:
-        if (k := key(x)) not in seen:
-            yield x
-            seen.add(k)
+    async with aclosing(stream):
+        async for x in stream:
+            if (k := key(x)) not in seen:
+                yield x
+                seen.add(k)
 
 
 async def drop(stream, n):
     curr = 0
-    async for x in stream:
-        if curr >= n:
-            yield x
-        curr += 1
+    async with aclosing(stream):
+        async for x in stream:
+            if curr >= n:
+                yield x
+            curr += 1
 
 
 async def dropwhile(fn, stream):
     go = False
-    async for x in stream:
-        if go:
-            yield x
-        elif not await acall(fn, x):
-            go = True
-            yield x
+    async with aclosing(stream):
+        async for x in stream:
+            if go:
+                yield x
+            elif not await acall(fn, x):
+                go = True
+                yield x
 
 
 async def drop_last(stream, n):
     buffer = deque(maxlen=n)
-    async for x in stream:
-        if len(buffer) == n:
-            yield buffer.popleft()
-        buffer.append(x)
+    async with aclosing(stream):
+        async for x in stream:
+            if len(buffer) == n:
+                yield buffer.popleft()
+            buffer.append(x)
 
 
 async def enumerate(stream):
     i = 0
-    async for x in stream:
-        yield (i, x)
-        i += 1
+    async with aclosing(stream):
+        async for x in stream:
+            yield (i, x)
+            i += 1
 
 
 async def every(stream, n):
-    async for i, x in enumerate(stream):
-        if i % n == 0:
-            yield x
+    async with aclosing(stream):
+        async for i, x in enumerate(stream):
+            if i % n == 0:
+                yield x
 
 
 async def filter(fn, stream):
-    async for x in stream:
-        if fn(x):
-            yield x
+    async with aclosing(stream):
+        async for x in stream:
+            if fn(x):
+                yield x
 
 
 async def first(stream):
-    async for x in stream:
-        return x
+    async with aclosing(stream):
+        async for x in stream:
+            return x
 
 
 async def last(stream):
-    async for x in stream:
-        rval = x
+    async with aclosing(stream):
+        async for x in stream:
+            rval = x
     return rval
 
 
 async def map(fn, stream):
-    async for x in stream:
-        yield await acall(fn, x)
+    async with aclosing(stream):
+        async for x in stream:
+            yield await acall(fn, x)
 
 
 @reducer
@@ -342,6 +372,9 @@ class MergeStream:
             if self.active == 0:
                 break
 
+    async def aclose(self):
+        pass
+
 
 merge = MergeStream
 
@@ -392,14 +425,15 @@ class Multicaster:
         return self._stream(q)
 
     async def run(self):
-        async for event in self.source:
-            await self._is_hungry
-            self._is_hungry = (
-                self.loop.create_future() if self.loop else asyncio.Future()
-            )
-            self.notify(event)
-        self.main_coroutine = None
-        self.end()
+        async with aclosing(self.source):
+            async for event in self.source:
+                await self._is_hungry
+                self._is_hungry = (
+                    self.loop.create_future() if self.loop else asyncio.Future()
+                )
+                self.notify(event)
+            self.main_coroutine = None
+            self.end()
 
     def __aiter__(self):
         return self.stream()
@@ -409,35 +443,39 @@ multicast = Multicaster
 
 
 async def nth(stream, n):
-    async for i, x in enumerate(stream):
-        if i == n:
-            return x
+    async with aclosing(stream):
+        async for i, x in enumerate(stream):
+            if i == n:
+                return x
     raise IndexError(n)
 
 
 async def norepeat(stream, key=lambda x: x):
     last = ABSENT
-    async for x in stream:
-        if (k := key(x)) != last:
-            yield x
-            last = k
+    async with aclosing(stream):
+        async for x in stream:
+            if (k := key(x)) != last:
+                yield x
+                last = k
 
 
 async def pairwise(stream):
     last = NOTSET
-    async for x in stream:
-        if last is not NOTSET:
-            yield (last, x)
-        last = x
+    async with aclosing(stream):
+        async for x in stream:
+            if last is not NOTSET:
+                yield (last, x)
+            last = x
 
 
 async def reduce(fn, stream, init=NOTSET):
     current = init
-    async for x in stream:
-        if current is NOTSET:
-            current = x
-        else:
-            current = await acall(fn, current, x)
+    async with aclosing(stream):
+        async for x in stream:
+            if current is NOTSET:
+                current = x
+            else:
+                current = await acall(fn, current, x)
     if current is NOTSET:
         raise ValueError("Stream cannot be reduced because it is empty.")
     return current
@@ -463,10 +501,11 @@ async def roll(stream, window, reducer=None, partial=None, init=NOTSET):
     q = deque(maxlen=window)
 
     if reducer is None:
-        async for x in stream:
-            q.append(x)
-            if partial or len(q) == window:
-                yield q
+        async with aclosing(stream):
+            async for x in stream:
+                q.append(x)
+                if partial or len(q) == window:
+                    yield q
 
     else:
         if partial is not None:  # pragma: no cover
@@ -474,19 +513,20 @@ async def roll(stream, window, reducer=None, partial=None, init=NOTSET):
 
         current = init
 
-        async for x in stream:
-            drop = q[0] if len(q) == window else NOTSET
-            last_size = len(q)
-            q.append(x)
-            current = reducer(
-                current,
-                x,
-                drop=drop,
-                last_size=last_size,
-                current_size=len(q),
-            )
-            if current is not SKIP:
-                yield current
+        async with aclosing(stream):
+            async for x in stream:
+                drop = q[0] if len(q) == window else NOTSET
+                last_size = len(q)
+                q.append(x)
+                current = reducer(
+                    current,
+                    x,
+                    drop=drop,
+                    last_size=last_size,
+                    current_size=len(q),
+                )
+                if current is not SKIP:
+                    yield current
 
 
 async def sample(stream, interval, reemit=True):
@@ -518,12 +558,13 @@ async def sample(stream, interval, reemit=True):
 
 async def scan(fn, stream, init=NOTSET):
     current = init
-    async for x in stream:
-        if current is NOTSET:
-            current = x
-        else:
-            current = await acall(fn, current, x)
-        yield current
+    async with aclosing(stream):
+        async for x in stream:
+            if current is NOTSET:
+                current = x
+            else:
+                current = await acall(fn, current, x)
+            yield current
 
 
 def slice(stream, start=None, stop=None, step=None):
@@ -615,30 +656,36 @@ class TaggedMergeStream:
             if self.active == 0:
                 break
 
+    async def aclose(self):
+        pass
+
 
 tagged_merge = TaggedMergeStream
 
 
 async def take(stream, n):
     curr = 0
-    async for x in stream:
-        yield x
-        curr += 1
-        if curr >= n:
-            break
+    async with aclosing(stream):
+        async for x in stream:
+            yield x
+            curr += 1
+            if curr >= n:
+                break
 
 
 async def takewhile(fn, stream):
-    async for x in stream:
-        if not await acall(fn, x):
-            break
-        yield x
+    async with aclosing(stream):
+        async for x in stream:
+            if not await acall(fn, x):
+                break
+            yield x
 
 
 async def take_last(stream, n):
     buffer = deque(maxlen=n)
-    async for x in stream:
-        buffer.append(x)
+    async with aclosing(stream):
+        async for x in stream:
+            buffer.append(x)
     for x in buffer:
         yield x
 
@@ -663,7 +710,8 @@ def top(stream, n=10, key=None, reverse=False):
 
 
 async def to_list(stream):
-    return [x async for x in stream]
+    async with aclosing(stream):
+        return [x async for x in stream]
 
 
 @reducer(init=(0, 0, 0))
@@ -679,11 +727,16 @@ class variance(average_and_variance._source):
 
 async def zip(*streams):
     iters = [aiter(s) for s in streams]
-    while True:
-        try:
-            yield [await anext(it) for it in iters]
-        except StopAsyncIteration:
-            return
+    try:
+        while True:
+            try:
+                yield [await anext(it) for it in iters]
+            except StopAsyncIteration:
+                return
+    finally:
+        for it in iters:
+            if hasattr(it, "aclose"):
+                await it.aclose()
 
 
 __filter = filter

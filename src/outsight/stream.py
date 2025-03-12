@@ -34,17 +34,24 @@ class Stream:
         self.source = source
 
     def __aiter__(self):
-        if not hasattr(self.source, "__aiter__"):
+        if not hasattr(self.source, "__aiter__"):  # pragma: no cover
             raise Exception(f"Stream source {self.source} is not iterable.")
         return aiter(self.source)
 
     def __await__(self):
-        return self.source.__await__()
+        if hasattr(self.source, "__await__"):
+            return self.source.__await__()
+        elif hasattr(self.source, "__aiter__"):
+            return self.first().__await__()
+        else:  # pragma: no cover
+            raise TypeError(f"Cannot await source: {self.source}")
 
     #############
     # Operators #
     #############
 
+    any = _forward(first_arg=True)
+    all = _forward(first_arg=True)
     average = _forward()
     bottom = _forward(first_arg=True)
     count = _forward()

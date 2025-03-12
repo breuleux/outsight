@@ -21,7 +21,7 @@ class Outsight:
         self.thread = asyncio.to_thread(self.go)
         return self.thread
 
-    def start(self):
+    def start(self):  # pragma: no cover
         assert self.thread is None
         self.thread = Thread(target=self.go)
         self.thread.start()
@@ -49,7 +49,7 @@ class Outsight:
             await task
 
     def __enter__(self):
-        if self.thread is None:
+        if self.thread is None:  # pragma: no cover
             self.start()
         return self
 
@@ -65,7 +65,7 @@ class MulticastQueue(Multicaster):
     def put_nowait(self, x):
         return self.source.put_nowait(x)
 
-    def get(self):
+    def get(self):  # pragma: no cover
         return self.source.get()
 
     def close(self):

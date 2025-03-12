@@ -32,6 +32,9 @@ class Queue(asyncio.Queue):
             raise StopAsyncIteration(None)
         return value
 
+    async def aclose(self):
+        pass
+
     def close(self):
         self.put_nowait(CLOSED)
 
