@@ -8,7 +8,7 @@ import inspect
 import math
 import time
 
-from .utils import ABSENT, CLOSED, BoundQueue, Queue, keyword_decorator
+from .utils import ABSENT, CLOSED, Queue, keyword_decorator
 from itertools import count as _count
 
 
@@ -379,51 +379,99 @@ class MergeStream:
 merge = MergeStream
 
 
-class Multicaster:
-    def __init__(self, stream, loop=None):
+class _MulticastStream:
+    def __init__(self, master):
+        self.master = master
+        self.queue = Queue()
+        self.iterator = aiter(self.run())
+
+    async def consume(self):
+        result = await self.queue.get()
+        if self.master.sync and self.queue.qsize() < self.master.sync:
+            self.master._under()
+        return result
+
+    async def run(self):
+        q = self.queue
+        master = self.master
+
+        try:
+            while True:
+                if q.empty():
+                    if master.someone_waits:
+                        result = await self.consume()
+                    elif master.sync_fut:
+                        await master.sync_fut
+                        continue
+                    else:
+                        master.someone_waits = True
+                        try:
+                            result = await anext(master.iterator)
+                            master.notify(result, excepted=q)
+                        except StopAsyncIteration:
+                            await master.iterator.aclose()
+                            master.notify(CLOSED)
+                            break
+                        finally:
+                            master.someone_waits = False
+                else:
+                    result = await self.consume()
+                if result is CLOSED:
+                    break
+                yield result
+        finally:
+            master.queues.discard(q)
+            master._under()
+
+    def __aiter__(self):
+        return self
+
+    def __anext__(self):
+        return anext(self.iterator)
+
+    async def aclose(self):
+        await self.iterator.aclose()
+        self.queue.close()
+
+
+class Multicast:
+    def __init__(self, stream, sync=False):
         self.source = stream
         self.iterator = aiter(stream)
         self.queues = set()
         self.someone_waits = False
-        self.loop = loop
+        self.sync = int(sync)
+        self.sync_fut = None
+        self.overs = 0
 
     def notify(self, event, excepted=None):
         for q in self.queues:
             if q is not excepted:
                 q.put_nowait(event)
+                if self.sync and q.qsize() >= self.sync:
+                    self._over()
 
-    async def _stream(self, q):
-        try:
-            while True:
-                if q.empty() and not self.someone_waits:
-                    self.someone_waits = True
-                    try:
-                        result = await anext(self.iterator)
-                        self.notify(result, excepted=q)
-                    except StopAsyncIteration:
-                        await self.iterator.aclose()
-                        self.notify(CLOSED)
-                        break
-                    finally:
-                        self.someone_waits = False
-                else:
-                    result = await q.get()
-                if result is CLOSED:
-                    break
-                yield result
-        finally:
-            self.queues.discard(q)
+    def _over(self):
+        if self.overs == 0:
+            self.sync_fut = asyncio.get_running_loop().create_future()
+        self.overs += 1
+
+    def _under(self):
+        self.overs -= 1
+        if self.sync_fut and self.overs == 0:
+            self.sync_fut.set_result(True)
+            self.sync_fut = None
 
     def stream(self):
-        q = BoundQueue(loop=self.loop)
-        self.queues.add(q)
-        return self._stream(q)
+        s = _MulticastStream(self)
+        self.queues.add(s.queue)
+        return s
 
     def __aiter__(self):
         return self.stream()
 
 
-multicast = Multicaster
+multicast = Multicast
 
 
 async def nth(stream, n):

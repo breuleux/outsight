@@ -3,7 +3,7 @@ from threading import Thread
 from concurrent.futures import Future, wait
 
 from .gvr import Giver
-from .ops import Multicaster
+from .ops import Multicast
 from .stream import Stream
 from .utils import BoundQueue, Queue
 
@@ -87,9 +87,9 @@ class Outsight:
             q.close()
 
 
-class MulticastQueue(Multicaster):
-    def __init__(self, loop=None):
-        super().__init__(BoundQueue(loop), loop=loop)
+class MulticastQueue(Multicast):
+    def __init__(self, loop=None, sync=False):
+        super().__init__(BoundQueue(loop), sync=sync)
 
     def put_nowait(self, x):
         return self.source.put_nowait(x)
