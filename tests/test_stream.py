@@ -1,5 +1,7 @@
-from outsight.stream import Stream
 import pytest
+
+from outsight.stream import Stream
+
 from .common import seq, timed_sequence
 
 aio = pytest.mark.asyncio

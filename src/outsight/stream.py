@@ -1,4 +1,4 @@
-from . import ops, keyed
+from . import keyed, ops
 
 
 class _forward:
@@ -34,9 +34,12 @@ class Stream:
         if hasattr(self.source, "__await__"):
             return self.source.__await__()
         elif hasattr(self.source, "__aiter__"):
-            return self.first().__await__()
+            return anext(aiter(self.source)).__await__()
         else:  # pragma: no cover
             raise TypeError(f"Cannot await source: {self.source}")
+
+    def close(self):
+        self.source.close()
 
     #############
     # Operators #

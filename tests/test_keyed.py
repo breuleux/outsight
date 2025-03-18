@@ -1,7 +1,8 @@
 import pytest
-from outsight import ops as O
-from outsight import keyed as K
-from .common import seq, lister
+
+from outsight import keyed as K, ops as O
+
+from .common import lister, seq
 
 aio = pytest.mark.asyncio
 

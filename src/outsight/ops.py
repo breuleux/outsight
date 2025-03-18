@@ -1,16 +1,15 @@
 import asyncio
-from bisect import bisect_left
 import builtins
-from collections import deque
-from contextlib import aclosing
 import functools
 import inspect
 import math
 import time
-
-from .utils import ABSENT, CLOSED, Queue, keyword_decorator
+from bisect import bisect_left
+from collections import deque
+from contextlib import aclosing
 from itertools import count as _count
 
+from .utils import ABSENT, CLOSED, Queue, keyword_decorator
 
 NOTSET = object()
 SKIP = object()

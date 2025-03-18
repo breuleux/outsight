@@ -1,11 +1,10 @@
 import asyncio
-from threading import Thread
+import inspect
 from concurrent.futures import Future, wait
+from threading import Thread
 
-from .gvr import Giver
-from .ops import Multicast
-from .stream import Stream
-from .utils import BoundQueue, Queue
+from .exchange import Giver, MulticastQueue, Sender
+from .utils import Queue
 
 
 class AwaitableThread(Thread):
@@ -40,8 +39,8 @@ class Outsight:
         self.ready = Future()
         self.queue = Queue()
         self.queues = [self.queue]
+        self.send = self.create_sender()
         self.give = self.create_giver()
-        self.given = Stream(self.give.queue)
         self.tasks = []
         self.pretasks = []
 
@@ -57,11 +56,24 @@ class Outsight:
         self.queues.append(q)
         return q
 
+    def create_sender(self):
+        s = Sender(loop=self.loop)
+        self.queues.append(s)
+        return s
+
     def create_giver(self):
-        return Giver(self.create_queue())
+        g = Giver(loop=self.loop)
+        self.queues.append(g)
+        return g
 
     def add(self, worker):
-        self.queue.put_nowait(worker(self.given))
+        sig = inspect.signature(worker)
+        kwargs = {}
+        if any(p == "given" for p in sig.parameters):
+            kwargs["given"] = self.give.stream()
+        if any(p == "sent" for p in sig.parameters):
+            kwargs["sent"] = self.send.stream()
+        self.queue.put_nowait(worker(**kwargs))
 
     def go(self):
         self.loop.run_until_complete(self.run())
@@ -85,17 +97,3 @@ class Outsight:
     def __exit__(self, exct, excv, exctb):
         for q in self.queues:
             q.close()
-
-
-class MulticastQueue(Multicast):
-    def __init__(self, loop=None, sync=False):
-        super().__init__(BoundQueue(loop), sync=sync)
-
-    def put_nowait(self, x):
-        return self.source.put_nowait(x)
-
-    def get(self):  # pragma: no cover
-        return self.source.get()
-
-    def close(self):
-        self.source.close()

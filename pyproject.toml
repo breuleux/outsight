@@ -27,3 +27,9 @@ asyncio_default_fixture_loop_scope = "function"
 # Without this it doesn't recognize anext.
 # Weird, because requires-python >= 3.10 should suffice
 target-version = "py310"
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

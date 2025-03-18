@@ -3,7 +3,6 @@ import functools
 import inspect
 from itertools import count
 
-
 PON = getattr(inspect.Parameter, "POSITIONAL_ONLY", None)
 
 

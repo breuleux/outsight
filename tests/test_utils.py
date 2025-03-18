@@ -4,8 +4,8 @@ from textwrap import dedent
 
 import pytest
 
-from outsight.utils import Queue, lax_function
 from outsight import ops as O
+from outsight.utils import Queue, lax_function
 
 aio = pytest.mark.asyncio
 

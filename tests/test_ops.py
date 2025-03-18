@@ -1,9 +1,12 @@
 import asyncio
 from itertools import count
+
 import pytest
+
 from outsight import ops as O
 from outsight.ops import to_list
-from .common import seq, timed_sequence, lister
+
+from .common import lister, seq, timed_sequence
 
 aio = pytest.mark.asyncio
 
