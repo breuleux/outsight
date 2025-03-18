@@ -26,8 +26,12 @@ def gtest(*expected):
             q.close()
             results = await to_list(q)
             for r, e in zip(results, expected):
-                for (kr, vr), (ke, ve) in zip(sorted(r.items()), sorted(e.items())):
-                    assert kr == ke
+                d = dict(r)
+                d["$timestamp"] = r.timestamp
+                d["$frame"] = r.frame
+                d["$line"] = r.line
+                for ke, ve in e.items():
+                    vr = d[ke]
                     if isinstance(ve, type):
                         assert isinstance(vr, ve)
                     else:
@@ -124,28 +128,10 @@ def test_give_expr(give):
     give(x + 10)
 
 
-@gtest({"x": 15, "$timestamp": float})
-def test_give_timestamp(give):
-    x = 15
-    give.timestamp(x)
-
-
-@gtest({"x": 16, "$frame": FrameType})
-def test_give_frame(give):
-    x = 16
-    give.frame(x)
-
-
-@gtest({"x": 17, "$line": LinePosition})
-def test_give_line(give):
-    x = 17
-    give.line(x)
-
-
 @gtest({"x": 18, "$line": LinePosition, "$timestamp": float, "$frame": FrameType})
-def test_give_multiple_specials(give):
+def test_give_specials(give):
     x = 18
-    give.line.timestamp.frame(x)
+    give(x)
 
 
 @gtest({"x": 55, "inh": 66})

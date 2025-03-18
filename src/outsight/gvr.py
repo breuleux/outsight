@@ -29,18 +29,7 @@ _improper_nullary_give_error = (
 )
 
 
-special_keys = {}
-
-
 global_count = count(0)
-
-
-def _special_timestamp():
-    return time.time()
-
-
-def _special_frame():
-    return sys._getframe(3)
 
 
 @dataclass
@@ -48,12 +37,6 @@ class LinePosition:
     name: str
     filename: str
     lineno: int
-
-
-def _special_line():
-    fr = sys._getframe(3)
-    co = fr.f_code
-    return LinePosition(co.co_name, co.co_filename, fr.f_lineno)
 
 
 def _find_targets(target):
@@ -151,6 +134,18 @@ def resolve(frame, func, args):
     return {name: value for name, value in zip(argnames, args)}
 
 
+class Capture(dict):
+    def __init__(self, **values):
+        self.timestamp = time.time()
+        self.frame = sys._getframe(3)
+        super().__init__(values)
+
+    @property
+    def line(self):
+        co = self.frame.f_code
+        return LinePosition(co.co_name, co.co_filename, self.frame.f_lineno)
+
+
 class Giver:
     """Giver of key/value pairs.
 
@@ -159,50 +154,14 @@ class Giver:
     Arguments:
         queue:
             The Queue into which to put given elements.
-        special:
-            List of special keys to give, mapped to functions.
         inherited:
             A ContextVar to use for inherited key/value pairs to give,
             as set by ``with self.inherit(key=value): ...``.
     """
 
-    def __init__(
-        self,
-        queue,
-        *,
-        special={},
-        inherited=global_inherited,
-    ):
+    def __init__(self, queue, *, inherited=global_inherited):
         self.queue = queue
-        self.special = special
         self.inherited = inherited
-
-    def copy(
-        self,
-        special=None,
-        inherited=None,
-    ):
-        """Copy this Giver with modified parameters."""
-        return type(self)(
-            queue=self.queue,
-            special=self.special if special is None else special,
-            inherited=self.inherited if inherited is None else inherited,
-        )
-
-    @property
-    def line(self):
-        """Return a giver that gives the line where it is called."""
-        return self.copy(special={**self.special, "$line": _special_line})
-
-    @property
-    def timestamp(self):
-        """Return a giver that gives the time where it is called."""
-        return self.copy(special={**self.special, "$timestamp": _special_timestamp})
-
-    @property
-    def frame(self):
-        """Return a giver that gives the frame where it is called."""
-        return self.copy(special={**self.special, "$frame": _special_frame})
 
     @contextmanager
     def inherit(self, **keys):
@@ -225,21 +184,19 @@ class Giver:
 
     def produce(self, values):
         """Give the values dictionary."""
-        for special, fn in self.special.items():
-            values[special] = fn()
-
+        if not isinstance(values, Capture):  # pragma: no cover
+            values = Capture(**values)
         inh = self.inherited.get()
         if inh is not None:
-            values = {**inh, **values}
-
+            values.update(inh)
         self.queue.put_nowait(values)
 
     def __call__(self, *args, **values):
         """Give the args and values."""
         if args:
-            values = {**resolve(1, self, args), **values}
+            values = Capture(**resolve(1, self, args), **values)
         elif not values:
-            values = resolve(1, self, ())
+            values = Capture(**resolve(1, self, ()))
 
         self.produce(values)
 
