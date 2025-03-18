@@ -110,6 +110,51 @@ async def test_cycle(ten):
 
 
 @aio
+async def test_buffer():
+    seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1"
+
+    results = await lister.buffer(timed_sequence(seq), 2.95, align=True)
+    assert results == [["A"], ["B"], ["C", "D"], ["E"], ["F", "G", "H"]]
+
+
+@aio
+async def test_buffer_align():
+    seq = "2 A  1 B  3 C"
+
+    results = await lister.buffer(
+        timed_sequence(seq), 2.95, align=True, skip_empty=False
+    )
+    assert results == [["A"], ["B"], ["C"]]
+
+    results = await lister.buffer(
+        timed_sequence(seq), 2.95, align=False, skip_empty=False
+    )
+    assert results == [[], ["A"], ["B"], ["C"]]
+
+
+@aio
+async def test_buffer_count(ten):
+    results = await lister.buffer(ten, count=3)
+    assert results == [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
+
+
+@aio
+async def test_buffer_max_count():
+    seq = "1 A B C  1 D E F G"
+
+    results = await lister.buffer(timed_sequence(seq), 1.5, count=2)
+    assert results == [["A", "B"], ["C"], ["D", "E"], ["F", "G"]]
+
+
+@aio
+async def test_buffer_debounce():
+    seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1  I 1  J 3  K"
+
+    results = await lister.buffer_debounce(timed_sequence(seq), 1.1)
+    assert results == [["A", "B"], ["C", "D"], ["E"], ["F", "G", "H", "I", "J"], ["K"]]
+
+
+@aio
 async def test_debounce():
     seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1  I 1  J 3  K"
 
@@ -121,6 +166,14 @@ async def test_debounce():
 
     resultsmt = await lister.debounce(timed_sequence(seq), 1.1, max_wait=3.1)
     assert resultsmt == list("BDEIJK")
+
+
+@aio
+async def test_debounce_small_gap():
+    seq = "A 1  B 1  C 1"
+
+    results = await lister.debounce(timed_sequence(seq), 0.4)
+    assert results == list("ABC")
 
 
 @aio
@@ -164,6 +217,24 @@ async def test_filter(ten):
 @aio
 async def test_first(ten):
     assert await O.first(ten) == 0
+
+
+@aio
+async def test_flat_map(ten):
+    results = await lister.flat_map(ten, lambda x: [x, x * x])
+    assert results[:10] == [0, 0, 1, 1, 2, 4, 3, 9, 4, 16]
+
+
+@aio
+async def test_group(ten):
+    results = await lister.group(ten, lambda x: x % 3 == 0)
+    assert results[:4] == [(True, [0]), (False, [1, 2]), (True, [3]), (False, [4, 5])]
+
+
+@aio
+async def test_group_empty():
+    results = await lister.group(seq(), lambda x: x % 3 == 0)
+    assert results == []
 
 
 @aio
@@ -363,6 +434,20 @@ async def test_sort():
 
 
 @aio
+async def test_split_boundary():
+    li = [0, 1, 3, 7, 4, 5, -1, 29, 310]
+    results = await lister.split_boundary(O.aiter(li), lambda x, y: x > y)
+    assert results == [[0, 1, 3, 7], [4, 5], [-1, 29, 310]]
+
+
+@aio
+async def test_split_boundary_empty():
+    li = []
+    results = await lister.split_boundary(O.aiter(li), lambda x, y: x > y)
+    assert results == []
+
+
+@aio
 async def test_std(ten):
     avg = sum(range(10)) / 10
     var = sum([(i - avg) ** 2 for i in range(10)]) / 9
@@ -450,6 +535,13 @@ async def test_ticktock(fakesleep):
     results = await lister.take(O.ticktock(1), 10)
     assert results == list(range(10))
     assert fakesleep[0] == 9
+
+
+@aio
+async def test_ticktock_offset(fakesleep):
+    results = await lister.take(O.ticktock(1, offset=2), 10)
+    assert results == list(range(10))
+    assert fakesleep[0] == 11
 
 
 @aio

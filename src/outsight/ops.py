@@ -178,6 +178,62 @@ async def bottom(stream, n=10, key=None, reverse=False):
         return elems
 
 
+async def buffer(
+    stream, control=None, *, align=False, count=None, skip_empty=True, offset=None
+):
+    if isinstance(control, (int, float)):
+        control = ticktock(control, offset=offset)
+    elif offset:  # pragma: no cover
+        raise NotImplementedError("Cannot use offset if control isn't a number")
+    current = []
+    it = aiter(stream)
+    if align:
+        current.append(await anext(it))
+    ms = tagged_merge(main=it, exit_on_first=True)
+    if control:
+        ms.register(control=control)
+    async for tag, x in ms:
+        if tag == "main":
+            current.append(x)
+            if not count or len(current) < count:
+                continue
+        if current or not skip_empty:
+            yield current
+        current = []
+    if current:
+        yield current
+
+
+async def buffer_debounce(stream, delay=None, max_wait=None):
+    MARK = object()
+    ms = MergeStream()
+    max_time = None
+    target_time = None
+    ms.register(stream)
+    current = []
+    async for element in ms:
+        now = time.time()
+        if element is MARK:
+            delta = target_time - now
+            if delta > 0:
+                ms.register(__delay(MARK, delta))
+            else:
+                yield current
+                current = []
+                max_time = None
+                target_time = None
+        else:
+            new_element = target_time is None
+            if max_time is None and max_wait is not None:
+                max_time = now + max_wait
+            target_time = now + delay
+            if max_time:
+                target_time = builtins.min(max_time, target_time)
+            if new_element:
+                ms.register(__delay(MARK, target_time - now))
+            current.append(element)
+
+
 async def chain(streams):
     async for stream in aiter(streams):
         async with aclosing(stream):
@@ -207,32 +263,8 @@ async def cycle(stream):
 
 
 async def debounce(stream, delay=None, max_wait=None):
-    MARK = object()
-    ms = MergeStream()
-    max_time = None
-    target_time = None
-    ms.register(stream)
-    current = None
-    async for element in ms:
-        now = time.time()
-        if element is MARK:
-            delta = target_time - now
-            if delta > 0:
-                ms.register(__delay(MARK, delta))
-            else:
-                yield current
-                max_time = None
-                target_time = None
-        else:
-            new_element = target_time is None
-            if max_time is None and max_wait is not None:
-                max_time = now + max_wait
-            target_time = now + delay
-            if max_time:
-                target_time = builtins.min(max_time, target_time)
-            if new_element:
-                ms.register(__delay(MARK, target_time - now))
-            current = element
+    async for x in buffer_debounce(stream, delay=delay, max_wait=max_wait):
+        yield x[-1]
 
 
 async def delay(value, delay):
@@ -304,6 +336,27 @@ async def first(stream):
     async with aclosing(stream):
         async for x in stream:
             return x
+
+
+async def flat_map(stream, fn):
+    async for x in stream:
+        async for y in aiter(fn(x)):
+            yield y
+
+
+async def group(stream, keyfn):
+    current_key = ABSENT
+    current = []
+    async with aclosing(stream):
+        async for x in stream:
+            kx = keyfn(x)
+            if kx != current_key and current_key is not ABSENT:
+                yield (current_key, current)
+                current = []
+            current_key = kx
+            current.append(x)
+    if current_key is not ABSENT:
+        yield (current_key, current)
 
 
 async def last(stream):
@@ -588,30 +641,14 @@ async def roll(stream, window, reducer=None, partial=None, init=NOTSET):
 
 
 async def sample(stream, interval, reemit=True):
-    if isinstance(interval, (float, int)):
-        interval = ticktock(interval)
-
     current = ABSENT
-    ticked = False
-
-    async for tag, value in tagged_merge(
-        tick=interval, stream=stream, exit_on_first=True
-    ):
-        if tag == "stream":
-            if current is ABSENT and ticked:
-                yield value
-                if reemit:
-                    current = value
-            else:
-                current = value
-            ticked = False
-        else:
-            ticked = True
-            if current is not ABSENT:
-                yield current
-                if not reemit:
-                    current = ABSENT
-                    ticked = False
+    async for group in buffer(stream, interval, align=True, skip_empty=False):
+        if group:
+            if current is ABSENT and len(group) > 1:  # pragma: no cover
+                yield group[0]
+            yield (current := group[-1])
+        elif reemit and current is not ABSENT:
+            yield current
 
 
 async def scan(stream, fn, init=NOTSET):
@@ -646,6 +683,21 @@ async def sort(stream, key=None, reverse=False):
     li = await to_list(stream)
     li.sort(key=key, reverse=reverse)
     return li
+
+
+async def split_boundary(stream, fn):
+    first = True
+    current = []
+    async for a, b in pairwise(stream):
+        if first:
+            current.append(a)
+        if fn(a, b):
+            yield current
+            current = []
+        current.append(b)
+        first = False
+    if current:
+        yield current
 
 
 @reducer(init=(0, 0, 0))
@@ -700,7 +752,9 @@ def throttle(stream, delay):
     return sample(stream, delay, reemit=False)
 
 
-async def ticktock(interval):
+async def ticktock(interval, offset=0):
+    if offset:
+        await asyncio.sleep(offset)
     for i in _count():
         yield i
         await asyncio.sleep(interval)
