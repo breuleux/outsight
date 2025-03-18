@@ -14,6 +14,7 @@ from itertools import count as _count
 
 NOTSET = object()
 SKIP = object()
+UNBLOCK = object()
 
 
 @keyword_decorator
@@ -210,14 +211,14 @@ async def debounce(stream, delay=None, max_wait=None):
     ms = MergeStream()
     max_time = None
     target_time = None
-    ms.add(stream)
+    ms.register(stream)
     current = None
     async for element in ms:
         now = time.time()
         if element is MARK:
             delta = target_time - now
             if delta > 0:
-                ms.add(__delay(MARK, delta))
+                ms.register(__delay(MARK, delta))
             else:
                 yield current
                 max_time = None
@@ -230,7 +231,7 @@ async def debounce(stream, delay=None, max_wait=None):
             if max_time:
                 target_time = builtins.min(max_time, target_time)
             if new_element:
-                ms.add(__delay(MARK, target_time - now))
+                ms.register(__delay(MARK, target_time - now))
             current = element
 
 
@@ -334,46 +335,71 @@ def max(last, add):
         return last
 
 
-class MergeStream:
-    def __init__(self, *streams, stay_alive=False):
-        self.queue = Queue()
-        self.active = 1 if stay_alive else 0
-        for stream in streams:
-            self.add(stream)
+class TaggedMergeStream:
+    def __init__(self, streams={}, exit_on_first=False, **streams_kw):
+        self.unblock = asyncio.Future()
+        self.exit_on_first = exit_on_first
+        self.work = {}
+        for tag, stream in {**streams, **streams_kw}.items():
+            self._add(tag, stream)
 
-    async def _add(self, fut, iterator):
-        try:
-            result = await fut
-            self.queue.put_nowait((result, iterator))
-        except StopAsyncIteration:
-            self.queue.put_nowait((None, False))
+    def register(self, **streams):
+        for tag, stream in streams.items():
+            self._add(tag, stream)
 
-    def add(self, fut):
-        self.active += 1
+    def _add(self, tag, fut):
         if inspect.isasyncgen(fut) or hasattr(fut, "__aiter__"):
             it = aiter(fut)
-            coro = self._add(anext(it), it)
+            self.work[asyncio.create_task(anext(it))] = (tag, it)
         elif inspect.isawaitable(fut):
-            coro = self._add(fut, None)
+            self.work[asyncio.create_task(fut)] = (tag, None)
         else:  # pragma: no cover
             raise TypeError(f"Cannot merge object {fut!r}")
-        return asyncio.create_task(coro)
+
+        if self.unblock and not self.unblock.done():
+            self.unblock.set_result(UNBLOCK)
 
     async def __aiter__(self):
-        async for result, it in self.queue:
-            if it is False:
-                self.active -= 1
-            elif it is None:
-                yield result
-                self.active -= 1
-            else:
-                asyncio.create_task(self._add(anext(it), it))
-                yield result
-            if self.active == 0:
+        wind_down = False
+        while True:
+            if not self.work:
                 break
+            done, _ = await asyncio.wait(
+                [self.unblock, *self.work.keys()], return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done:
+                if task is self.unblock:
+                    self.unblock = asyncio.Future()
+                    continue
+                tag, s = self.work[task]
+                del self.work[task]
+                try:
+                    yield (tag, task.result())
+                except StopAsyncIteration:
+                    if self.exit_on_first:
+                        wind_down = True
+                    continue
+                if s and not wind_down:
+                    self.work[asyncio.create_task(anext(s))] = (tag, s)
 
     async def aclose(self):
         pass
+
+
+tagged_merge = TaggedMergeStream
+
+
+class MergeStream(TaggedMergeStream):
+    def __init__(self, *streams):
+        super().__init__(dict(builtins.enumerate(streams)))
+
+    def register(self, *streams):
+        for stream in streams:
+            self._add(None, stream)
+
+    async def __aiter__(self):
+        async for _, result in super().__aiter__():
+            yield result
 
 
 merge = MergeStream
@@ -387,7 +413,7 @@ class _MulticastStream:
 
     async def consume(self):
         result = await self.queue.get()
-        if self.master.sync and self.queue.qsize() < self.master.sync:
+        if self.master.sync and self.queue.qsize() == self.master.sync - 1:
             self.master._under()
         return result
 
@@ -636,63 +662,6 @@ class std(average_and_variance._source):
 @reducer
 def sum(last, add):
     return last + add
-
-
-class TaggedMergeStream:
-    def __init__(self, streams={}, stay_alive=False, exit_on_first=False, **streams_kw):
-        self.queue = Queue()
-        self.active = 1 if stay_alive else 0
-        self.exit_on_first = exit_on_first
-        self.tasks = {}
-        self.done = False
-        for tag, stream in {**streams, **streams_kw}.items():
-            self.add(tag, stream)
-
-    async def _add(self, tag, fut, iterator):
-        try:
-            result = await fut
-            self.queue.put_nowait(((tag, result), iterator))
-        except StopAsyncIteration:
-            self.queue.put_nowait(((tag, None), False))
-
-    def add(self, tag, fut):
-        self.active += 1
-        if inspect.isasyncgen(fut) or hasattr(fut, "__aiter__"):
-            it = aiter(fut)
-            coro = self._add(tag, anext(it), it)
-        elif inspect.isawaitable(fut):
-            coro = self._add(tag, fut, None)
-        else:  # pragma: no cover
-            raise TypeError(f"Cannot merge object {fut!r}")
-        task = asyncio.create_task(coro)
-        self.tasks[tag] = task
-        return task
-
-    async def __aiter__(self):
-        async for result, it in self.queue:
-            if it is False:
-                self.active -= 1
-                if self.exit_on_first:
-                    self.done = True
-            elif it is None:
-                yield result
-                self.active -= 1
-            else:
-                tag, _ = result
-                if self.done:
-                    self.active -= 1
-                else:
-                    task = asyncio.create_task(self._add(tag, anext(it), it))
-                    self.tasks[tag] = task
-                yield result
-            if self.active == 0:
-                break
-
-    async def aclose(self):
-        pass
-
-
-tagged_merge = TaggedMergeStream
 
 
 async def take(stream, n):
