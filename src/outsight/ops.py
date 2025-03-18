@@ -207,11 +207,6 @@ async def cycle(stream):
 
 async def debounce(stream, delay=None, max_wait=None):
     MARK = object()
-
-    async def mark(delay):
-        await asyncio.sleep(delay)
-        return MARK
-
     ms = MergeStream()
     max_time = None
     target_time = None
@@ -222,7 +217,7 @@ async def debounce(stream, delay=None, max_wait=None):
         if element is MARK:
             delta = target_time - now
             if delta > 0:
-                ms.add(mark(delta))
+                ms.add(__delay(MARK, delta))
             else:
                 yield current
                 max_time = None
@@ -235,8 +230,13 @@ async def debounce(stream, delay=None, max_wait=None):
             if max_time:
                 target_time = builtins.min(max_time, target_time)
             if new_element:
-                ms.add(mark(target_time - now))
+                ms.add(__delay(MARK, target_time - now))
             current = element
+
+
+async def delay(value, delay):
+    await asyncio.sleep(delay)
+    return value
 
 
 async def distinct(stream, key=lambda x: x):
@@ -771,5 +771,6 @@ async def zip(*streams):
                 await it.aclose()
 
 
+__delay = delay
 __filter = filter
 __scan = scan

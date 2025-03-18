@@ -8,17 +8,12 @@ def seq(*elems):
     return O.aiter(elems)
 
 
-async def timed_sequence(seq, factor=1000):
+async def timed_sequence(seq):
     for entry in seq.split():
         try:
-            await asyncio.sleep(float(entry) / factor)
+            await asyncio.sleep(float(entry))
         except ValueError:
             yield entry
-
-
-async def delayed(x, delay, factor=1000):
-    await asyncio.sleep(delay / factor)
-    return x
 
 
 class Lister:
@@ -28,9 +23,10 @@ class Lister:
     def __getattr__(self, attr):
         async def wrap(*args, **kwargs):
             try:
-                return await to_list(getattr(O, attr)(*args, **kwargs))
+                method = getattr(O, attr)
             except AttributeError:
-                return await to_list(getattr(K, attr)(*args, **kwargs))
+                method = getattr(K, attr)
+            return await to_list(method(*args, **kwargs))
 
         return wrap
 

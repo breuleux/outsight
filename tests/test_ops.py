@@ -2,7 +2,7 @@ from itertools import count
 import pytest
 from outsight import ops as O
 from outsight.ops import to_list
-from .common import seq, timed_sequence, delayed, lister
+from .common import seq, timed_sequence, lister
 
 aio = pytest.mark.asyncio
 
@@ -110,19 +110,16 @@ async def test_cycle(ten):
 
 @aio
 async def test_debounce():
-    factor = 500
     seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1  I 1  J 3  K"
 
-    results = await lister.timed_sequence(seq, factor)
+    results = await lister.timed_sequence(seq)
     assert results == list("ABCDEFGHIJK")
 
-    resultsd = await lister.debounce(timed_sequence(seq, factor), 1.1 / factor)
+    resultsd = await lister.debounce(timed_sequence(seq), 1.1)
     assert resultsd == list("BDEJK")
 
-    resultsmt = await lister.debounce(
-        timed_sequence(seq, factor), 1.1 / factor, max_wait=3.1 / factor
-    )
-    assert resultsmt == list("BDEHJK")
+    resultsmt = await lister.debounce(timed_sequence(seq), 1.1, max_wait=3.1)
+    assert resultsmt == list("BDEIJK")
 
 
 @aio
@@ -294,10 +291,8 @@ async def test_roll_partial():
 
 @aio
 async def test_sample():
-    factor = 100
     seq = "A 1  B 1  C 1  D 1"
-
-    results = await lister.sample(timed_sequence(seq, factor), 0.6 / factor)
+    results = await lister.sample(timed_sequence(seq), 0.6)
     assert results == list("AABBCDDD")
 
 
@@ -361,7 +356,7 @@ async def test_tagged_merge():
     seq1 = timed_sequence("A 1 B 1 C 1 D")
     seq2 = timed_sequence("1.5 x 0.2 y 7 z")
 
-    results = await lister.tagged_merge(bo=seq1, jack=seq2, horse=delayed("!", 1.6))
+    results = await lister.tagged_merge(bo=seq1, jack=seq2, horse=O.delay("!", 1.6))
     assert results == [
         ("bo", "A"),
         ("bo", "B"),
@@ -399,10 +394,9 @@ async def test_tee(ten):
 
 @aio
 async def test_throttle():
-    factor = 100
     seq = "A 1  B 1  C 1  D 1"
 
-    results = await lister.throttle(timed_sequence(seq, factor), 2.5 / factor)
+    results = await lister.throttle(timed_sequence(seq), 2.5)
     assert results == list("ACD")
 
 
