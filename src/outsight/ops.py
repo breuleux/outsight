@@ -498,8 +498,7 @@ class _MulticastStream:
                     break
                 yield result
         finally:
-            master.queues.discard(q)
-            master._under()
+            await master.destroy(q)
 
     def __aiter__(self):
         return self
@@ -509,6 +508,7 @@ class _MulticastStream:
 
     async def aclose(self):
         await self.iterator.aclose()
+        await self.master.destroy(self.queue)
         self.queue.close()
 
 
@@ -521,6 +521,7 @@ class Multicast:
         self.sync = int(sync)
         self.sync_fut = None
         self.overs = 0
+        self.active = 0
 
     def notify(self, event, excepted=None):
         for q in self.queues:
@@ -540,9 +541,17 @@ class Multicast:
             self.sync_fut.set_result(True)
             self.sync_fut = None
 
+    async def destroy(self, q):
+        if q in self.queues:
+            self.queues.discard(q)
+            self.active -= 1
+            if not self.active:
+                await self.iterator.aclose()
+
     def stream(self):
         s = _MulticastStream(self)
         self.queues.add(s.queue)
+        self.active += 1
         return s
 
     def __aiter__(self):

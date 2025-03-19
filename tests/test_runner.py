@@ -87,3 +87,23 @@ class test_give_slice:
     async def o_exchange(given):
         async for event in given[2:4]:
             event.set_result(event.value * 2)
+
+
+@otest
+class test_give_multiple:
+    def main(o):
+        assert o.give("A") == "AAA"
+        assert o.give("B") == "B"
+        # Processing starts
+        assert o.give("C") == "CC"
+        assert o.give("D") == "DD"
+        # Processing ends
+        assert o.give("E") == "E"
+
+    async def o_twice(given):
+        async for event in given[2:4]:
+            event.set_result(event.value * 2)
+
+    async def o_thrice(given):
+        async for event in given[:1]:
+            event.set_result(event.value * 3)

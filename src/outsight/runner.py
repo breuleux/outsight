@@ -51,7 +51,7 @@ class Outsight:
         wait([self.ready])
         return self.thread
 
-    def create_queue(self):
+    def create_queue(self):  # pragma: no cover
         q = MulticastQueue(loop=self.loop)
         self.queues.append(q)
         return q

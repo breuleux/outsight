@@ -5,6 +5,7 @@ from concurrent.futures import Future, wait
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from functools import cached_property
 
 from varname import ImproperUseError, argname, varname
 
@@ -77,7 +78,7 @@ class Capture(dict):
         return LinePosition(co.co_name, co.co_filename, self.frame.f_lineno)
 
     def __missing__(self, key):
-        if self.parent is None:
+        if self.parent is None:  # pragma: no cover
             raise KeyError(key)
         return self.parent[key]
 
@@ -116,7 +117,7 @@ class BaseSender:
     def stream(self):
         return Stream(self)
 
-    def close(self):
+    def close(self):  # pragma: no cover
         pass
 
     async def aclose(self):
@@ -151,18 +152,20 @@ class Sender(BaseSender):
         return aiter(self.queue)
 
 
-class BlockingCapture(dict, Future):
+class BlockingCapture(Capture):
     def __init__(self, value, parent, **values):
-        self.parent = parent
         self.value = value
-        super(BlockingCapture, self).__init__(values)
-        super(dict, self).__init__()
+        self.future = Future()
+        super().__init__(parent, **values)
 
-    def __hash__(self):
-        return id(self)
+    def done(self):
+        return self.future.done()
 
-    def __eq__(self, other):
-        return self is other
+    def set_result(self, value):
+        return self.future.set_result(value)
+
+    def set_exception(self, exc):
+        return self.future.set_exception(exc)
 
 
 class Giver(BaseSender):
@@ -177,7 +180,7 @@ class Giver(BaseSender):
             return result
         response = BlockingCapture(result, self.inherited.get(), **values)
         self.loop.call_soon_threadsafe(self.fut.set_result, response)
-        ((done,), ()) = wait([response])
+        ((done,), ()) = wait([response.future])
         return done.result()
 
     async def __aiter__(self):
@@ -186,14 +189,22 @@ class Giver(BaseSender):
             while True:
                 try:
                     response = await self.fut
+                    self.fut = self.loop.create_future()
+                    yield response
                 except StopAsyncIteration:
                     break
-                self.fut = self.loop.create_future()
-                yield response
-                if not response.done():
-                    response.set_result(response.value)
+                finally:
+                    if not response.done():
+                        response.set_result(response.value)
         finally:
             self.active = False
+
+    @cached_property
+    def _multicast(self):
+        return Multicast(self, sync=True)
+
+    def stream(self):
+        return Stream(self._multicast)
 
     def close(self):
         if self.active:

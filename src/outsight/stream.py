@@ -38,9 +38,6 @@ class Stream:
         else:  # pragma: no cover
             raise TypeError(f"Cannot await source: {self.source}")
 
-    def close(self):
-        self.source.close()
-
     #############
     # Operators #
     #############
