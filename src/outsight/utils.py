@@ -18,9 +18,11 @@ class Queue(asyncio.Queue):
         self._wakeup_next(self._getters)
 
     def _wakeup_next(self, waiters):
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._wakeup_next, self._getters)
-        super()._wakeup_next(waiters)
+        while waiters:
+            waiter = waiters.popleft()
+            if not waiter.done():
+                self._loop.call_soon_threadsafe(waiter.set_result, None)
+                break
 
     def __aiter__(self):
         return self
