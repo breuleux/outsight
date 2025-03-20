@@ -1,8 +1,8 @@
 from contextlib import aclosing
 from types import FunctionType
 
+from ..utils import lax_function
 from . import ops
-from .utils import lax_function
 
 
 async def affix(stream, **extra):

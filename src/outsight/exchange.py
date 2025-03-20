@@ -9,23 +9,8 @@ from functools import cached_property
 
 from varname import ImproperUseError, argname, varname
 
-from .ops import Multicast
+from .aiter import Multicast, MulticastQueue
 from .stream import Stream
-from .utils import BoundQueue
-
-
-class MulticastQueue(Multicast):
-    def __init__(self, loop=None, sync=False):
-        super().__init__(BoundQueue(loop), sync=sync)
-
-    def put_nowait(self, x):
-        return self.source.put_nowait(x)
-
-    def get(self):  # pragma: no cover
-        return self.source.get()
-
-    def close(self):
-        self.source.close()
 
 
 @dataclass

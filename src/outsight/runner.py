@@ -3,8 +3,8 @@ import inspect
 from concurrent.futures import Future, wait
 from threading import Thread
 
+from .aiter import Queue
 from .exchange import Giver, MulticastQueue, Sender
-from .utils import Queue
 
 
 class AwaitableThread(Thread):

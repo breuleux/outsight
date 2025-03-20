@@ -1,4 +1,4 @@
-from . import keyed, ops
+from . import aiter as ait
 
 
 class _forward:
@@ -10,7 +10,7 @@ class _forward:
         if self.name is None:
             self.name = name
         if self.operator is None:
-            self.operator = getattr(ops, self.name, None) or getattr(keyed, self.name)
+            self.operator = getattr(ait, self.name)
 
     def __get__(self, obj, objt):
         obj = aiter(obj)
@@ -101,11 +101,11 @@ class Stream:
     def __getitem__(self, item):
         src = aiter(self.source)
         if isinstance(item, int):
-            return Stream(ops.nth(src, item))
+            return Stream(ait.nth(src, item))
         elif isinstance(item, slice):
-            return Stream(ops.slice(src, item.start, item.stop, item.step))
+            return Stream(ait.slice(src, item.start, item.stop, item.step))
         else:
-            return Stream(keyed.getitem(src, item))
+            return Stream(ait.getitem(src, item))
 
     augment = _forward()
     affix = _forward()

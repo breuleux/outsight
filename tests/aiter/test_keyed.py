@@ -1,8 +1,8 @@
 import pytest
 
-from outsight import keyed as K, ops as O
+from outsight import aiter as O
 
-from .common import lister, seq
+from ..common import lister, seq
 
 aio = pytest.mark.asyncio
 
@@ -58,14 +58,14 @@ async def test_kmap_kw(xten):
 
 @aio
 async def test_kmerge():
-    result = await K.kmerge(seq({"x": 1}, {"y": 2}, {"x": 3}, {"z": 4}))
+    result = await O.kmerge(seq({"x": 1}, {"y": 2}, {"x": 3}, {"z": 4}))
     assert result == {"x": 3, "y": 2, "z": 4}
 
 
 @aio
 async def test_kscan():
     result = await lister.map(
-        K.kscan(seq({"x": 1}, {"y": 2}, {"x": 3}, {"z": 4})), dict
+        O.kscan(seq({"x": 1}, {"y": 2}, {"x": 3}, {"z": 4})), dict
     )
     assert result == [
         {"x": 1},
