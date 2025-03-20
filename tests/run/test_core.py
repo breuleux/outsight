@@ -42,6 +42,20 @@ class test_two_reductions:
 
 
 @otest
+class test_fixtures:
+    def main(o):
+        for i in range(5):
+            o.send(x=i)
+            o.log(y=i * i)
+
+    async def o_sent(overseer, sent):
+        assert await sent["x"].sum() == sum(range(5))
+
+    async def o_logged(logged):
+        assert await logged["y"].sum() == sum(i * i for i in range(5))
+
+
+@otest
 class test_affix:
     def main(o):
         o.send(x=10)

@@ -1,10 +1,10 @@
 import asyncio
-import inspect
 from concurrent.futures import Future, wait
 from threading import Thread
 
 from ..ops import Queue
 from .exchange import Giver, MulticastQueue, Sender
+from .fixtures import FixtureGroup, StreamFixture, ValueFixture
 
 
 class AwaitableThread(Thread):
@@ -34,13 +34,15 @@ class AwaitableThread(Thread):
 
 class Outsight:
     def __init__(self):
+        self.fixtures = FixtureGroup(overseer=ValueFixture(self))
         self.loop = asyncio.new_event_loop()
         self.thread = None
         self.ready = Future()
-        self.queue = Queue()
-        self.queues = [self.queue]
-        self.send = self.create_sender()
-        self.give = self.create_giver()
+        self.event_queue = Queue()
+        self.queues = [self.event_queue]
+        self.log = self.create_sender("logged")
+        self.send = self.create_sender("sent")
+        self.give = self.create_giver("given")
         self.tasks = []
         self.pretasks = []
 
@@ -51,40 +53,37 @@ class Outsight:
         wait([self.ready])
         return self.thread
 
-    def create_queue(self):  # pragma: no cover
+    def create_queue(self, fixture_name):  # pragma: no cover
         q = MulticastQueue(loop=self.loop)
         self.queues.append(q)
+        self.fixtures.add_fixture(fixture_name, StreamFixture(q))
         return q
 
-    def create_sender(self):
+    def create_sender(self, fixture_name):
         s = Sender(loop=self.loop)
         self.queues.append(s)
+        self.fixtures.add_fixture(fixture_name, StreamFixture(s))
         return s
 
-    def create_giver(self):
+    def create_giver(self, fixture_name):
         g = Giver(loop=self.loop)
         self.queues.append(g)
+        self.fixtures.add_fixture(fixture_name, StreamFixture(g))
         return g
 
     def add(self, worker):
-        sig = inspect.signature(worker)
-        kwargs = {}
-        if any(p == "given" for p in sig.parameters):
-            kwargs["given"] = self.give.stream()
-        if any(p == "sent" for p in sig.parameters):
-            kwargs["sent"] = self.send.stream()
-        self.queue.put_nowait(worker(**kwargs))
+        self.event_queue.put_nowait(self.fixtures.execute(worker))
 
     def go(self):
         self.loop.run_until_complete(self.run())
 
     async def run(self):
-        while not self.queue.empty():
-            new_task = self.queue.get_nowait()
+        while not self.event_queue.empty():
+            new_task = self.event_queue.get_nowait()
             self.tasks.append(self.loop.create_task(new_task))
         await asyncio.sleep(0)
         self.ready.set_result(True)
-        async for new_task in self.queue:  # pragma: no cover
+        async for new_task in self.event_queue:  # pragma: no cover
             self.tasks.append(self.loop.create_task(new_task))
         for task in self.tasks:
             await task
