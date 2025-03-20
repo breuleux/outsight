@@ -1,3 +1,5 @@
+from functools import wraps
+
 from . import aiter as ait
 
 
@@ -15,8 +17,9 @@ class _forward:
     def __get__(self, obj, objt):
         obj = aiter(obj)
 
+        @wraps(self.operator)
         def wrap(*args, **kwargs):
-            return Stream(self.operator(obj, *args, **kwargs))
+            return objt(self.operator(obj, *args, **kwargs))
 
         return wrap
 

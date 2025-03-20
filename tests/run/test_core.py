@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from outsight.runner import Outsight
+from outsight.run.core import Outsight
 
 aio = pytest.mark.asyncio
 
