@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from outsight import aiter as O
+from outsight import ops as O
 
 from ..common import lister, timed_sequence
 

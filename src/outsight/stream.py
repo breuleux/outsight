@@ -1,6 +1,6 @@
 from functools import wraps
 
-from . import aiter as ait
+from . import ops
 
 
 class _forward:
@@ -12,7 +12,7 @@ class _forward:
         if self.name is None:
             self.name = name
         if self.operator is None:
-            self.operator = getattr(ait, self.name)
+            self.operator = getattr(ops, self.name)
 
     def __get__(self, obj, objt):
         obj = aiter(obj)
@@ -104,11 +104,11 @@ class Stream:
     def __getitem__(self, item):
         src = aiter(self.source)
         if isinstance(item, int):
-            return Stream(ait.nth(src, item))
+            return Stream(ops.nth(src, item))
         elif isinstance(item, slice):
-            return Stream(ait.slice(src, item.start, item.stop, item.step))
+            return Stream(ops.slice(src, item.start, item.stop, item.step))
         else:
-            return Stream(ait.getitem(src, item))
+            return Stream(ops.getitem(src, item))
 
     augment = _forward()
     affix = _forward()

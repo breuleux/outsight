@@ -6,7 +6,7 @@ import pytest
 
 @pytest.fixture
 def ten():
-    from outsight import aiter as O
+    from outsight import ops as O
 
     return O.aiter(range(10))
 

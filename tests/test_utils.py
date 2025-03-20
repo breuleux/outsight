@@ -4,8 +4,6 @@ from textwrap import dedent
 
 import pytest
 
-from outsight import aiter as O
-from outsight.aiter import Queue
 from outsight.utils import lax_function
 
 aio = pytest.mark.asyncio
@@ -140,14 +138,3 @@ def test_lax_already_kw():
         return kws["x"]
 
     assert lax_function(f) is f
-
-
-@aio
-async def test_queue_putleft():
-    q = Queue()
-    q.put_nowait(1)
-    q.put_nowait(2)
-    q.put_nowait(3)
-    q.putleft(4)
-    q.close()
-    assert (await O.to_list(q)) == [4, 1, 2, 3]

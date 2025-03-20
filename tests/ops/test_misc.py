@@ -1,11 +1,9 @@
-from itertools import count
-
 import pytest
 
-from outsight import aiter as O
-from outsight.aiter.ops import to_list
+from outsight import ops as O
+from outsight.ops.misc import to_list
 
-from ..common import lister, seq, timed_sequence
+from ..common import lister, seq
 
 aio = pytest.mark.asyncio
 
@@ -28,42 +26,6 @@ async def test_all(ten):
 @aio
 async def test_all_predicate(ten):
     assert await O.all(ten, lambda x: x >= 0)
-
-
-@aio
-async def test_average(ten):
-    assert await O.average(ten) == sum(range(10)) / 10
-
-
-@aio
-async def test_average_scan(ten):
-    assert await lister.average(ten, scan=True) == [
-        sum(range(i)) / i for i in range(1, 11)
-    ]
-
-
-@aio
-async def test_average_roll(ten):
-    assert await lister.average(ten, scan=2) == [0.0] + [
-        (i + i + 1) / 2 for i in range(9)
-    ]
-
-
-@aio
-async def test_average_and_variance(ten):
-    avg = sum(range(10)) / 10
-    var = sum([(i - avg) ** 2 for i in range(10)]) / 9
-    assert await O.average_and_variance(ten) == (avg, var)
-
-
-@aio
-async def test_average_and_variance_one_element():
-    assert await O.average_and_variance(O.aiter([8])) == (8, None)
-
-
-@aio
-async def test_average_and_variance_roll(ten):
-    assert (await lister.average_and_variance(ten, scan=3))[4] == (3, 1)
 
 
 @aio
@@ -109,73 +71,6 @@ async def test_generate_chain(ten):
 @aio
 async def test_cycle(ten):
     assert await lister.take(O.cycle(ten), 19) == [*range(0, 10), *range(0, 9)]
-
-
-@aio
-async def test_buffer():
-    seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1"
-
-    results = await lister.buffer(timed_sequence(seq), 2.95, align=True)
-    assert results == [["A"], ["B"], ["C", "D"], ["E"], ["F", "G", "H"]]
-
-
-@aio
-async def test_buffer_align():
-    seq = "2 A  1 B  3 C"
-
-    results = await lister.buffer(
-        timed_sequence(seq), 2.95, align=True, skip_empty=False
-    )
-    assert results == [["A"], ["B"], ["C"]]
-
-    results = await lister.buffer(
-        timed_sequence(seq), 2.95, align=False, skip_empty=False
-    )
-    assert results == [[], ["A"], ["B"], ["C"]]
-
-
-@aio
-async def test_buffer_count(ten):
-    results = await lister.buffer(ten, count=3)
-    assert results == [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
-
-
-@aio
-async def test_buffer_max_count():
-    seq = "1 A B C  1 D E F G"
-
-    results = await lister.buffer(timed_sequence(seq), 1.5, count=2)
-    assert results == [["A", "B"], ["C"], ["D", "E"], ["F", "G"]]
-
-
-@aio
-async def test_buffer_debounce():
-    seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1  I 1  J 3  K"
-
-    results = await lister.buffer_debounce(timed_sequence(seq), 1.1)
-    assert results == [["A", "B"], ["C", "D"], ["E"], ["F", "G", "H", "I", "J"], ["K"]]
-
-
-@aio
-async def test_debounce():
-    seq = "A 1  B 5  C 1  D 2  E 3  F 1  G 1  H 1  I 1  J 3  K"
-
-    results = await lister.timed_sequence(seq)
-    assert results == list("ABCDEFGHIJK")
-
-    resultsd = await lister.debounce(timed_sequence(seq), 1.1)
-    assert resultsd == list("BDEJK")
-
-    resultsmt = await lister.debounce(timed_sequence(seq), 1.1, max_wait=3.1)
-    assert resultsmt == list("BDEIJK")
-
-
-@aio
-async def test_debounce_small_gap():
-    seq = "A 1  B 1  C 1"
-
-    results = await lister.debounce(timed_sequence(seq), 0.4)
-    assert results == list("ABC")
 
 
 @aio
@@ -258,21 +153,6 @@ async def test_map_async(ten):
 
 
 @aio
-async def test_max():
-    assert await O.max(O.aiter([8, 3, 7, 15, 4])) == 15
-
-
-@aio
-async def test_min():
-    assert await O.min(O.aiter([8, 3, 7, 15, 4])) == 3
-
-
-@aio
-async def test_min_scan():
-    assert await lister.min(O.aiter([8, 3, 7, 15, 4]), scan=3) == [8, 3, 3, 3, 4]
-
-
-@aio
 async def test_norepeat():
     assert await lister.norepeat(seq(1, 2, 1, 3, 3, 2, 2, 2, 1)) == [1, 2, 1, 3, 2, 1]
 
@@ -286,43 +166,6 @@ async def test_nth_out_of_bounds(ten):
 @aio
 async def test_pairwise(ten):
     assert await lister.pairwise(ten) == list(zip(range(0, 9), range(1, 10)))
-
-
-@aio
-async def test_reduce(ten):
-    assert await O.reduce(ten, lambda x, y: x + y) == sum(range(1, 10))
-
-
-@aio
-async def test_reduce_init(ten):
-    assert (
-        await O.reduce(ten, lambda x, y: x + y, init=1000) == sum(range(1, 10)) + 1000
-    )
-
-
-@aio
-async def test_reduce_empty(ten):
-    with pytest.raises(ValueError, match="Stream cannot be reduced"):
-        await O.reduce(O.aiter([]), lambda x, y: x + y)
-
-
-@aio
-async def test_repeat(fakesleep):
-    assert await lister.repeat("wow", count=7, interval=1) == ["wow"] * 7
-    assert fakesleep[0] == 6
-
-
-@aio
-async def test_repeat_fn(fakesleep):
-    cnt = count()
-    assert await lister.repeat(lambda: next(cnt), count=7, interval=1) == [*range(7)]
-    assert fakesleep[0] == 6
-
-
-@aio
-async def test_repeat_nocount(fakesleep):
-    assert await lister.take(O.repeat("wow", interval=1), 100) == ["wow"] * 100
-    assert fakesleep[0] == 99
 
 
 @aio
@@ -340,13 +183,6 @@ async def test_roll_partial():
         (0, 1, 2),
         (1, 2, 3),
     ]
-
-
-@aio
-async def test_sample():
-    seq = "A 1  B 1  C 1  D 1"
-    results = await lister.sample(timed_sequence(seq), 0.6)
-    assert results == list("AABBCDDD")
 
 
 @aio
@@ -407,18 +243,6 @@ async def test_split_boundary_empty():
 
 
 @aio
-async def test_std(ten):
-    avg = sum(range(10)) / 10
-    var = sum([(i - avg) ** 2 for i in range(10)]) / 9
-    assert await O.std(ten) == var**0.5
-
-
-@aio
-async def test_sum(ten):
-    assert await O.sum(ten) == sum(range(10))
-
-
-@aio
 async def test_take(ten):
     assert await lister.take(ten, 5) == [*range(0, 5)]
 
@@ -442,37 +266,8 @@ async def test_tee(ten):
 
 
 @aio
-async def test_throttle():
-    seq = "A 1  B 1  C 1  D 1"
-
-    results = await lister.throttle(timed_sequence(seq), 2.5)
-    assert results == list("ACD")
-
-
-@aio
-async def test_ticktock(fakesleep):
-    results = await lister.take(O.ticktock(1), 10)
-    assert results == list(range(10))
-    assert fakesleep[0] == 9
-
-
-@aio
-async def test_ticktock_offset(fakesleep):
-    results = await lister.take(O.ticktock(1, offset=2), 10)
-    assert results == list(range(10))
-    assert fakesleep[0] == 11
-
-
-@aio
 async def test_top():
     assert (await O.top(seq(4, -1, 3, 8, 21, 0, -3), 3)) == [21, 8, 4]
-
-
-@aio
-async def test_variance(ten):
-    avg = sum(range(10)) / 10
-    var = sum([(i - avg) ** 2 for i in range(10)]) / 9
-    assert await O.variance(ten) == var
 
 
 @aio

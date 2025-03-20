@@ -9,7 +9,7 @@ from functools import cached_property
 
 from varname import ImproperUseError, argname, varname
 
-from ..aiter import Multicast, MulticastQueue
+from ..ops import Multicast, MulticastQueue
 from ..stream import Stream
 
 

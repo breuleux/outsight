@@ -2,7 +2,7 @@ from types import FrameType
 
 import pytest
 
-from outsight.aiter import to_list
+from outsight.ops import to_list
 from outsight.run.exchange import LinePosition, Sender
 
 aio = pytest.mark.asyncio

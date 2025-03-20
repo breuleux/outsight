@@ -1,7 +1,7 @@
 import asyncio
 
-from outsight import aiter as O
-from outsight.aiter import to_list
+from outsight import ops as O
+from outsight.ops import to_list
 
 
 def seq(*elems):
