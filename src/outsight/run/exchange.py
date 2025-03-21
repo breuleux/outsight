@@ -51,7 +51,8 @@ def resolve(frame, func, args):
 
 
 class Capture(dict):
-    def __init__(self, parent=None, **values):
+    def __init__(self, value, parent, **values):
+        self.value = value
         self.parent = parent
         self.timestamp = time.time()
         self.frame = sys._getframe(3)
@@ -96,7 +97,7 @@ class BaseSender:
         if args:
             values = {**resolve(1, self, args), **values}
 
-        result = args[0] if len(args) == 1 else None
+        result = list(values.values())[0]
         return self.produce(values, result)
 
     def stream(self):
@@ -126,7 +127,7 @@ class Sender(BaseSender):
 
     def produce(self, values, result):
         """Give the values dictionary."""
-        values = Capture(self.inherited.get(), **values)
+        values = Capture(result, self.inherited.get(), **values)
         self.queue.put_nowait(values)
         return result
 
@@ -139,9 +140,8 @@ class Sender(BaseSender):
 
 class BlockingCapture(Capture):
     def __init__(self, value, parent, **values):
-        self.value = value
         self.future = Future()
-        super().__init__(parent, **values)
+        super().__init__(value, parent, **values)
 
     def done(self):
         return self.future.done()

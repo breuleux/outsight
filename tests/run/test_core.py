@@ -106,17 +106,16 @@ class test_give_slice:
             event.set_result(event.value * 2)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="Varname problem")
 @otest
 class test_give_multiple:
     def main(o):
-        assert o.give("A") == "AAA"
-        assert o.give("B") == "B"
+        assert o.give(x="A") == "AAA"
+        assert o.give(x="B") == "B"
         # Processing starts
-        assert o.give("C") == "CC"
-        assert o.give("D") == "DD"
+        assert o.give(x="C") == "CC"
+        assert o.give(x="D") == "DD"
         # Processing ends
-        assert o.give("E") == "E"
+        assert o.give(x="E") == "E"
 
     async def o_twice(given):
         async for event in given[2:4]:
