@@ -143,7 +143,6 @@ class Stream(BaseStream):
     split_boundary = _forward()
     std = _forward()
     sum = _forward()
-    tagged_merge = _forward()
     take = _forward()
     take_while = _forward()
     take_last = _forward()
@@ -154,9 +153,17 @@ class Stream(BaseStream):
     variance = _forward()
     zip = _forward()
 
-    # chain
-    # repeat
-    # ticktock
+    def chain(self, *others):
+        def op(stream):
+            return ops.chain([stream, *others])
+
+        return self.pipe(op)
+
+    def tagged_merge(self, name="main", **streams):
+        def op(stream):
+            return ops.tagged_merge({name: stream}, **streams)
+
+        return self.pipe(op)
 
     ########################
     # Dict-based operators #

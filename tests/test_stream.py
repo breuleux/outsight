@@ -14,6 +14,15 @@ async def test_simple_reduction(ten):
 
 
 @aio
+async def test_chain():
+    seq1 = timed_sequence("A 1 B 1 C 1 D")
+    seq2 = timed_sequence("1.5 x 0.1 y 7 z")
+
+    s = Stream(seq1)
+    assert await s.chain(seq2).to_list() == list("ABCDxyz")
+
+
+@aio
 async def test_map_reduce(ten):
     s = Stream(ten)
     assert (await s.map(lambda x: x * x).max()) == 81
@@ -36,6 +45,16 @@ async def test_merge_operator():
     s = Stream(seq1)
     ss = s + seq2
     assert await ss.to_list() == list("ABxyCDz")
+
+
+@aio
+async def test_tagged_merge():
+    seq1 = timed_sequence("A 1 B 1 C 1 D")
+    seq2 = timed_sequence("1.5 x 0.1 y 7 z")
+
+    s = Stream(seq1)
+    ss = s.tagged_merge("one", two=seq2)
+    assert (await ss.to_list())[:3] == [("one", "A"), ("one", "B"), ("two", "x")]
 
 
 @aio
