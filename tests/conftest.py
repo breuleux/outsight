@@ -26,7 +26,7 @@ def fakesleep(monkeypatch):
     yield t
 
 
-class TickingEventLoop(asyncio.EventLoop):
+class TickingEventLoop(type(asyncio.get_event_loop_policy().new_event_loop())):
     """Event loop that resolves a "tick" every time the loop is run once.
 
     The point is to then replace asyncio.sleep(n) by waiting for n*100 ticks,
@@ -51,21 +51,14 @@ class TickingEventLoop(asyncio.EventLoop):
             del self.ticks[self.curr]
         self.curr += 1
 
-    def run_forever(self):
-        try:
-            self._run_forever_setup()
-            while True:
-                nostuff = not self._ready
-                if nostuff:
-                    self._stopping = True
-                self._run_once()
-                self.tick()
-                if nostuff:
-                    self._stopping = False
-                elif self._stopping:
-                    break
-        finally:
-            self._run_forever_cleanup()
+    def _run_once(self):
+        nostuff = not self._ready
+        if nostuff:
+            self._stopping = True
+        super()._run_once()
+        self.tick()
+        if nostuff:
+            self._stopping = False
 
 
 class TickingEventLoopPolicy(asyncio.DefaultEventLoopPolicy):

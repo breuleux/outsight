@@ -1,3 +1,4 @@
+import sys
 from types import FrameType
 
 import pytest
@@ -50,6 +51,7 @@ def test_send_multiple(send):
     send(x=3, y=4)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Varname problem")
 @stest({"x": 7})
 def test_send_var(send):
     x = 7

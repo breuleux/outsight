@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import pytest
 
@@ -70,6 +71,7 @@ class test_affix:
         ]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Varname problem")
 @otest
 class test_give:
     def main(o):
@@ -87,6 +89,7 @@ class test_give:
                 event.set_result(event.value * 2)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Varname problem")
 @otest
 class test_give_slice:
     def main(o):
@@ -103,6 +106,7 @@ class test_give_slice:
             event.set_result(event.value * 2)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Varname problem")
 @otest
 class test_give_multiple:
     def main(o):

@@ -31,7 +31,10 @@ async def buffer(
     current = []
     it = aiter(stream)
     if align:
-        current.append(await anext(it))
+        try:
+            current.append(await anext(it))
+        except StopAsyncIteration:
+            return
     ms = tagged_merge(main=it, exit_on_first=True)
     if control:
         ms.register(control=control)

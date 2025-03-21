@@ -18,6 +18,12 @@ async def test_buffer():
 
 
 @aio
+async def test_buffer_empty():
+    results = await lister.buffer(O.aiter([]), 2.95, align=True)
+    assert results == []
+
+
+@aio
 async def test_buffer_align():
     seq = "2 A  1 B  3 C"
 
