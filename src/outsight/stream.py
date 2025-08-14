@@ -81,6 +81,9 @@ class BaseStream:
         else:  # pragma: no cover
             raise TypeError(f"Cannot await source: {source}")
 
+    async def aclose(self):
+        await self.iterator.aclose()
+
 
 class _forward:
     def __init__(self, operator=None, name=None):

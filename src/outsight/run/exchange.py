@@ -169,6 +169,7 @@ class Giver(BaseSender):
         return done.result()
 
     async def __aiter__(self):
+        response = None
         self.active = True
         try:
             while True:
@@ -179,7 +180,7 @@ class Giver(BaseSender):
                 except StopAsyncIteration:
                     break
                 finally:
-                    if not response.done():
+                    if response and not response.done():
                         response.set_result(response.value)
         finally:
             self.active = False
