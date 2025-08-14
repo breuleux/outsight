@@ -78,15 +78,16 @@ class Outsight:
         self.loop.run_until_complete(self.run())
 
     async def run(self):
-        while not self.event_queue.empty():
-            new_task = self.event_queue.get_nowait()
-            self.tasks.append(self.loop.create_task(new_task))
-        await asyncio.sleep(0)
-        self.ready.set_result(True)
-        async for new_task in self.event_queue:  # pragma: no cover
-            self.tasks.append(self.loop.create_task(new_task))
-        for task in self.tasks:
-            await task
+        async with self.fixtures.enter():
+            while not self.event_queue.empty():
+                new_task = self.event_queue.get_nowait()
+                self.tasks.append(self.loop.create_task(new_task))
+            await asyncio.sleep(0)
+            self.ready.set_result(True)
+            async for new_task in self.event_queue:  # pragma: no cover
+                self.tasks.append(self.loop.create_task(new_task))
+            for task in self.tasks:
+                await task
 
     def __enter__(self):
         if self.thread is None:  # pragma: no cover

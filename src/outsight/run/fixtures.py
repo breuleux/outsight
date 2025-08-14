@@ -3,11 +3,16 @@ from contextlib import AsyncExitStack, asynccontextmanager
 
 
 class Fixture:
+    scope = "local"
+
+    @asynccontextmanager
     async def context(self):  # pragma: no cover
-        pass
+        yield self
 
 
-class ValueFixture:
+class ValueFixture(Fixture):
+    scope = "global"
+
     def __init__(self, value):
         self.value = value
 
@@ -16,7 +21,9 @@ class ValueFixture:
         yield self.value
 
 
-class StreamFixture:
+class StreamFixture(Fixture):
+    scope = "local"
+
     def __init__(self, stream):
         self.stream = stream
 
@@ -45,6 +52,25 @@ class FixtureGroup:
         async with AsyncExitStack() as stack:
             kw = {}
             for name, fixture in self.get_applicable(fn).items():
-                value = await stack.enter_async_context(fixture.context())
+                match fixture.scope:
+                    case "global":
+                        if fixture not in self.global_values:
+                            value = await self.global_stack.enter_async_context(
+                                fixture.context()
+                            )
+                            self.global_values[fixture] = value
+                        else:
+                            value = self.global_values[fixture]
+                    case "local":
+                        value = await stack.enter_async_context(fixture.context())
+                    case _:
+                        raise RuntimeError(f"Unknown fixture scope: {fixture.scope}")
                 kw[name] = value
             await fn(**kw)
+
+    @asynccontextmanager
+    async def enter(self):
+        async with AsyncExitStack() as stack:
+            self.global_values = {}
+            self.global_stack = stack
+            yield
