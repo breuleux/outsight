@@ -101,9 +101,9 @@ class Outsight:
         for ep in importlib.metadata.entry_points().select(group=entry_point):
             try:
                 fixture = ep.load()
-            except ImportError as e:
+            except ModuleNotFoundError as e:
                 fixture = UnusableFixture(
-                    f"Fixture {ep.name} requires package '{e}' to be installed"
+                    f"Fixture {ep.name} requires package '{e.name}' to be installed"
                 )
             except Exception as e:
                 fixture = UnusableFixture(f"Fixture {ep.name} could not be loaded: {e}")

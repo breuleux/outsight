@@ -71,3 +71,12 @@ class test_bad_fixture:
     async def o_worker(bad):
         # Should not be called, as fixture raises
         assert False, "Should not reach here"
+
+
+@otest(expect_error=TypeError)
+class test_unavailable_fixture:
+    def main(o):
+        pass
+
+    async def o_worker(whatsthat):
+        pass

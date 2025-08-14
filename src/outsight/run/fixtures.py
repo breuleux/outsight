@@ -62,6 +62,8 @@ class FixtureGroup:
         async with AsyncExitStack() as stack:
             kw = {}
             for name, fixture in self.get_applicable(fn).items():
+                if fixture is None:
+                    raise TypeError(f"Fixture '{name}' is not available.")
                 match fixture.scope:
                     case "global":
                         if fixture not in self.global_values:
