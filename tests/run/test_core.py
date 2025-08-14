@@ -1,31 +1,8 @@
-import asyncio
 import sys
 
 import pytest
 
-from outsight.run.core import Outsight
-
-aio = pytest.mark.asyncio
-
-
-def otest(cls):
-    @aio
-    async def test():
-        @asyncio.to_thread
-        def mthread():
-            with outsight:
-                cls.main(outsight)
-
-        outsight = Outsight()
-
-        for name in dir(cls):
-            if name.startswith("o_"):
-                outsight.add(getattr(cls, name))
-
-        othread = outsight.start()
-        await asyncio.gather(othread, mthread)
-
-    return test
+from ..common import otest
 
 
 @otest

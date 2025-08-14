@@ -1,10 +1,17 @@
 import asyncio
+import importlib.metadata
 from concurrent.futures import Future, wait
 from threading import Thread
 
 from ..ops import Queue
 from .exchange import Giver, MulticastQueue, Sender
-from .fixtures import FixtureGroup, StreamFixture, ValueFixture
+from .fixtures import (
+    Fixture,
+    FixtureGroup,
+    StreamFixture,
+    UnusableFixture,
+    ValueFixture,
+)
 
 
 class AwaitableThread(Thread):
@@ -33,7 +40,7 @@ class AwaitableThread(Thread):
 
 
 class Outsight:
-    def __init__(self):
+    def __init__(self, entry_point_fixtures=True):
         self.fixtures = FixtureGroup(overseer=ValueFixture(self))
         self.loop = asyncio.new_event_loop()
         self.thread = None
@@ -45,6 +52,8 @@ class Outsight:
         self.give = self.create_giver("given")
         self.tasks = []
         self.pretasks = []
+        if entry_point_fixtures:
+            self.add_entry_point_fixtures()
 
     def start(self):
         assert self.thread is None
@@ -56,19 +65,19 @@ class Outsight:
     def create_queue(self, fixture_name):  # pragma: no cover
         q = MulticastQueue(loop=self.loop)
         self.queues.append(q)
-        self.fixtures.add_fixture(fixture_name, StreamFixture(q))
+        self.register_fixture(fixture_name, StreamFixture(q))
         return q
 
     def create_sender(self, fixture_name):
         s = Sender(loop=self.loop)
         self.queues.append(s)
-        self.fixtures.add_fixture(fixture_name, StreamFixture(s))
+        self.register_fixture(fixture_name, StreamFixture(s))
         return s
 
     def create_giver(self, fixture_name):
         g = Giver(loop=self.loop)
         self.queues.append(g)
-        self.fixtures.add_fixture(fixture_name, StreamFixture(g))
+        self.register_fixture(fixture_name, StreamFixture(g))
         return g
 
     def add(self, worker):
@@ -76,6 +85,29 @@ class Outsight:
 
     def go(self):
         self.loop.run_until_complete(self.run())
+
+    def register_fixtures(self, **fixtures):
+        for name, fixture in fixtures.items():
+            self.register_fixture(name, fixture)
+
+    def register_fixture(self, name, fixture):
+        if isinstance(fixture, type) and issubclass(fixture, Fixture):
+            fixture = fixture()
+        self.fixtures.register_fixture(name, fixture)
+
+    def add_entry_point_fixtures(
+        self, entry_point="outsight.fixtures"
+    ):  # pragma: no cover
+        for ep in importlib.metadata.entry_points().select(group=entry_point):
+            try:
+                fixture = ep.load()
+            except ImportError as e:
+                fixture = UnusableFixture(
+                    f"Fixture {ep.name} requires package '{e}' to be installed"
+                )
+            except Exception as e:
+                fixture = UnusableFixture(f"Fixture {ep.name} could not be loaded: {e}")
+            self.register_fixture(ep.name, fixture)
 
     async def run(self):
         async with self.fixtures.enter():

@@ -32,13 +32,23 @@ class StreamFixture(Fixture):
         yield self.stream.stream()
 
 
+class UnusableFixture(Fixture):
+    scope = "local"
+
+    def __init__(self, message):
+        self.message = message
+
+    def context(self):
+        raise RuntimeError(self.message)
+
+
 class FixtureGroup:
     def __init__(self, **fixtures):
         self.fixtures = {}
         for name, fx in fixtures.items():
-            self.add_fixture(name, fx)
+            self.register_fixture(name, fx)
 
-    def add_fixture(self, name, fixture):
+    def register_fixture(self, name, fixture):
         self.fixtures[name] = fixture
 
     def get_applicable(self, fn):
@@ -63,7 +73,7 @@ class FixtureGroup:
                             value = self.global_values[fixture]
                     case "local":
                         value = await stack.enter_async_context(fixture.context())
-                    case _:
+                    case _:  # pragma: no cover
                         raise RuntimeError(f"Unknown fixture scope: {fixture.scope}")
                 kw[name] = value
             await fn(**kw)
